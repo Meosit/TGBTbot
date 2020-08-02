@@ -1,0 +1,14 @@
+package com.tgbt.settings
+
+enum class Setting {
+
+    VK_COMMUNITY_ID,
+    FORWARDING_ENABLED,
+    TARGET_CHANNEL,
+    CONDITION_EXPR,
+    CHECK_PERIOD_MINUTES,
+    RETENTION_PERIOD_DAYS,
+    POST_COUNT_TO_LOAD,
+    USE_PHOTO_MODE
+
+}
