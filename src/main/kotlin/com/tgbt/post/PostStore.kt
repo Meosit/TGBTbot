@@ -16,7 +16,7 @@ class PostStore {
         1 == usingDefault { session -> session.update(sqlQuery(INSERT_SQL, post.id, post.unixTime)) }
 
     fun cleanupOldPosts(retentionDays: Int): Int = usingDefault { session ->
-        val leastPreservedTime = Instant.now().epochSecond - retentionDays * 86400
+        val leastPreservedTime = Instant.now().epochSecond - (retentionDays * 86400)
         session.update(sqlQuery(DELETE_SQL, leastPreservedTime))
     }
 

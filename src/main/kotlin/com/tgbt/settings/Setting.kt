@@ -9,6 +9,7 @@ enum class Setting {
     CHECK_PERIOD_MINUTES,
     RETENTION_PERIOD_DAYS,
     POST_COUNT_TO_LOAD,
-    USE_PHOTO_MODE
+    USE_PHOTO_MODE,
+    FOOTER_MD
 
 }

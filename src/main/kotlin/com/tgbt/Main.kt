@@ -103,6 +103,7 @@ fun Application.main() {
                             command.startsWith(CONDITION_COMMAND) -> msgContext.handleConditionCommand()
                             command.startsWith(FORWARDING_COMMAND) -> msgContext.handleForwardingCommand()
                             command.startsWith(CHANNEL_COMMAND) -> msgContext.handleChannelCommand()
+                            command.startsWith(FOOTER_COMMAND) -> msgContext.handleFooterCommand()
                             command.startsWith(VK_ID_COMMAND) -> msgContext.handleVkIdCommand()
                             command.startsWith(CHECK_PERIOD_COMMAND) -> msgContext.handleCheckPeriodCommand()
                             command.startsWith(RETENTION_PERIOD_COMMAND) -> msgContext.handleRetentionPeriodCommand()
@@ -142,6 +143,7 @@ fun Application.main() {
                     val communityId = settings[VK_COMMUNITY_ID].toLong()
                     val targetChannel = settings[TARGET_CHANNEL]
                     val usePhotoMode = settings[USE_PHOTO_MODE].toBoolean()
+                    val footerMd = settings[FOOTER_MD]
 
                     val postsToForward = try {
                         vkPostLoader
@@ -153,6 +155,8 @@ fun Application.main() {
                             .filterNot { postStore.isPostedToTG(it) }
                             .sortedBy { it.unixTime }
                             .also { logger.info("${it.size} after checking for already forwarded posts") }
+                            .take(20)
+                            .also { logger.info("Taking only first ${it.size} to avoid request rate errors") }
                     } catch (e: Exception) {
                         val message =
                             "Failed to load or parse VK posts, please check logs, error message:\n`${e.message}`"
@@ -167,11 +171,13 @@ fun Application.main() {
                             if (postStore.insert(it)) {
                                 logger.info("Inserted new post ${it.id} '${it.text.trimToLength(50, "…")}'")
                                 when {
-                                    usePhotoMode && it.imageUrl != null && it.text.length in 0..1024 ->
-                                        tgMessageSender.sendChatPhoto(targetChannel, TgImagePostOutput(it))
-                                    else -> tgMessageSender.sendChatMessage(targetChannel, TgLongPostOutput(it))
+                                    usePhotoMode && it.imageUrl != null && it.text.length in 0..(1024 - footerMd.length) ->
+                                        tgMessageSender.sendChatPhoto(targetChannel, TgImagePostOutput(it, footerMd))
+                                    else -> tgMessageSender.sendChatMessage(
+                                        targetChannel,
+                                        TgLongPostOutput(it, footerMd)
+                                    )
                                 }
-                                delay(1500)
                             }
                         }
                     } catch (e: Exception) {
@@ -211,7 +217,7 @@ fun Application.main() {
                 }
                 val output = TgTextOutput(message)
                 ownerIds.forEach { tgMessageSender.sendChatMessage(it, output) }
-                delay(6000)
+                delay(60000)
             }
         } while (isActive)
     }
@@ -230,11 +236,12 @@ private fun initializeDataSource(dbUrl: String) {
 private fun insertDefaultSettings(settings: Settings, json: Json) = with(settings) {
     putIfAbsent(TARGET_CHANNEL, "@tegebetetest")
     putIfAbsent(CHECK_PERIOD_MINUTES, "10")
-    putIfAbsent(RETENTION_PERIOD_DAYS, "7")
+    putIfAbsent(RETENTION_PERIOD_DAYS, "15")
     putIfAbsent(POST_COUNT_TO_LOAD, "300")
     putIfAbsent(VK_COMMUNITY_ID, "-57536014")
     putIfAbsent(FORWARDING_ENABLED, "true")
     putIfAbsent(USE_PHOTO_MODE, "true")
+    putIfAbsent(FOOTER_MD, "")
     putIfAbsent(
         CONDITION_EXPR, json.stringify(
             Expr.serializer(),
