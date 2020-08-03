@@ -3,9 +3,11 @@ package com.tgbt
 import com.tgbt.bot.MessageContext
 import com.tgbt.bot.owner.*
 import com.tgbt.grammar.*
+import com.tgbt.misc.escapeMarkdown
 import com.tgbt.misc.trimToLength
 import com.tgbt.post.PostStore
 import com.tgbt.post.toPost
+import com.tgbt.settings.Setting
 import com.tgbt.settings.Setting.*
 import com.tgbt.settings.SettingStore
 import com.tgbt.settings.Settings
@@ -100,6 +102,13 @@ fun Application.main() {
                         when {
                             command.startsWith("/help") -> tgMessageSender
                                 .sendChatMessage(chatId, TgTextOutput(loadResourceAsString("help.owner.md")))
+                            command.startsWith("/settings") -> tgMessageSender
+                                .sendChatMessage(
+                                    chatId,
+                                    TgTextOutput(
+                                        Setting.values()
+                                            .joinToString("\n") { "${it.name}: ${settings[it]}".escapeMarkdown() })
+                                )
                             command.startsWith(CONDITION_COMMAND) -> msgContext.handleConditionCommand()
                             command.startsWith(FORWARDING_COMMAND) -> msgContext.handleForwardingCommand()
                             command.startsWith(CHANNEL_COMMAND) -> msgContext.handleChannelCommand()

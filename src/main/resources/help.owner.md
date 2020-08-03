@@ -1,5 +1,7 @@
 You're the owner of this bot, so you're able to change the following settings:
 
+/settings - view current settings
+
 /forwarding `true|false` - global switch, set to false if you want to disable VK post forwarding
 /photomode `true|false` - switch to use photo mode, set to false if you want to send posts with photos and length <=1024 chars using invisible link (displayed at the end of the message)
 /vkid `<id_number>` - set VK community ID to fetch posts from. Usually it's negative number, google for more info
