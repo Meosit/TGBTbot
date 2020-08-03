@@ -175,7 +175,9 @@ fun Application.main() {
                             }
                         }
                     } catch (e: Exception) {
-                        val message = "Failed to send posts to TG, please check logs, error message:\n`${e.message}`"
+                        val clientError = (e as? ClientRequestException)?.response?.content?.readUTF8Line()
+                        val message =
+                            "Failed to send posts to TG, please check logs, error message:\n`${clientError ?: e.message}`"
                         logger.error(message, e)
                         val output = TgTextOutput(message)
                         ownerIds.forEach { tgMessageSender.sendChatMessage(it, output) }
@@ -204,6 +206,9 @@ fun Application.main() {
                 val message =
                     "Unexpected error occurred while reposting, next try in 60 seconds, error message:\n`${e.message}`"
                 logger.error(message, e)
+                (e as? ClientRequestException)?.response?.content?.let {
+                    logger.error(it.readUTF8Line())
+                }
                 val output = TgTextOutput(message)
                 ownerIds.forEach { tgMessageSender.sendChatMessage(it, output) }
                 delay(6000)
