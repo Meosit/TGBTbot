@@ -8,6 +8,7 @@ data class VkPost(
     val id: Long,
     val date: Long,
     @SerialName("post_type") val postType: String,
+    @SerialName("is_pinned") val isPinned: Int,
     @SerialName("marked_as_ads") val markedAsAds: Int,
     val text: String = "",
     val attachments: List<VkPostAttachment> = emptyList(),

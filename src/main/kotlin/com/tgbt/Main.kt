@@ -146,10 +146,12 @@ fun Application.main() {
                     val postsToForward = try {
                         vkPostLoader
                             .load(postsCount, communityId)
+                            .filter { it.isPinned + it.markedAsAds == 0 }
                             .map(VkPost::toPost)
                             .filter { condition.evaluate(it.stats) }
                             .also { logger.info("${it.size} posts left after filtering by forward condition") }
                             .filterNot { postStore.isPostedToTG(it) }
+                            .sortedBy { it.unixTime }
                             .also { logger.info("${it.size} after checking for already forwarded posts") }
                     } catch (e: Exception) {
                         val message =
@@ -169,7 +171,7 @@ fun Application.main() {
                                         tgMessageSender.sendChatPhoto(targetChannel, TgImagePostOutput(it))
                                     else -> tgMessageSender.sendChatMessage(targetChannel, TgLongPostOutput(it))
                                 }
-                                delay(1000)
+                                delay(1500)
                             }
                         }
                     } catch (e: Exception) {
