@@ -7,13 +7,13 @@ import kotlinx.serialization.Serializable
 data class VkPost(
     val id: Long,
     val date: Long,
-    @SerialName("post_type") val postType: String,
+    @SerialName("post_type") val postType: String = "post",
     @SerialName("is_pinned") val isPinned: Int = 0,
     @SerialName("marked_as_ads") val markedAsAds: Int = 0,
     val text: String = "",
     val attachments: List<VkPostAttachment> = emptyList(),
-    val likes: VkPostStat,
-    val comments: VkPostStat,
-    val reposts: VkPostStat,
-    val views: VkPostStat
+    val likes: VkPostStat = VkPostStat(0),
+    val comments: VkPostStat = VkPostStat(0),
+    val reposts: VkPostStat = VkPostStat(0),
+    val views: VkPostStat = VkPostStat(0)
 )
