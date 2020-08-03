@@ -21,7 +21,7 @@ suspend fun MessageContext.handleConditionCommand() {
             tgMessageSender.sendChatMessage(chatId, TgTextOutput(markdownText), messageId)
         }
         is ErrorResult -> {
-            tgMessageSender.sendChatMessage(chatId, TgTextOutput("Invalid condition syntax"), messageId)
+            tgMessageSender.sendChatMessage(chatId, TgTextOutput("Invalid condition syntax: $maybeExpr"), messageId)
         }
     }
 }

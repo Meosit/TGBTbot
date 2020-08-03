@@ -15,7 +15,7 @@ object ConditionGrammar : Grammar<Expr>() {
     private val lpar by literalToken("(")
     private val rpar by literalToken(")")
 
-    private val conditionalOperator by regexToken("[<>=]|<=|>=|=>|=<|==")
+    private val conditionalOperator by regexToken("<=|>=|=>|=<|==[<>=]")
     private val statType by regexToken("l(ikes?)?|r(eposts?)?|c(omments?)?|v(iews?)?")
     private val statValue by regexToken("\\d+")
 
@@ -43,5 +43,7 @@ object ConditionGrammar : Grammar<Expr>() {
             (-lpar * parser(this::rootParser) * -rpar)
 
     private val andChain by leftAssociative(term, and) { l, _, r -> And(l, r) }
+    private val orChain by leftAssociative(term, or) { l, _, r -> Or(l, r) }
+
     override val rootParser by leftAssociative(andChain, or) { l, _, r -> Or(l, r) }
 }
