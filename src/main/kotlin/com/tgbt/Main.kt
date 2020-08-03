@@ -27,6 +27,7 @@ import io.ktor.client.HttpClient
 import io.ktor.client.features.ClientRequestException
 import io.ktor.client.features.json.JsonFeature
 import io.ktor.client.features.json.serializer.KotlinxSerializer
+import io.ktor.client.request.get
 import io.ktor.features.CallLogging
 import io.ktor.features.ContentNegotiation
 import io.ktor.features.DefaultHeaders
@@ -54,11 +55,12 @@ import java.net.URI
 import java.util.concurrent.TimeUnit
 
 private val logger = LoggerFactory.getLogger("MainKt")
-
+private val SELF_PING_DELAY = TimeUnit.MINUTES.toMillis(10)
 
 fun main(args: Array<String>) = EngineMain.main(args)
 
 fun Application.main() {
+    val appUrl: String = System.getenv("APP_URL")
     val dbUrl: String = System.getenv("DATABASE_URL")
     val vkServiceToken: String = System.getenv("VK_SERVICE_TOKEN")
     val tgBotToken: String = System.getenv("TG_BOT_TOKEN")
@@ -178,7 +180,12 @@ fun Application.main() {
                     try {
                         postsToForward?.forEach {
                             if (postStore.insert(it)) {
-                                logger.info("Inserted new post ${it.id} '${it.text.trimToLength(50, "…")}'")
+                                logger.info(
+                                    "Inserted new post https://vk.com/wall${communityId}_${it.id} '${it.text.trimToLength(
+                                        50,
+                                        "…"
+                                    )}'"
+                                )
                                 when {
                                     usePhotoMode && it.imageUrl != null && it.text.length in 0..(1024 - footerMd.length) ->
                                         tgMessageSender.sendChatPhoto(targetChannel, TgImagePostOutput(it, footerMd))
@@ -229,6 +236,15 @@ fun Application.main() {
                 delay(60000)
             }
         } while (isActive)
+    }
+
+    launch {
+        while (isActive) {
+            delay(SELF_PING_DELAY)
+            logger.info("Starting self-ping...")
+            val response = httpClient.get<String>(appUrl)
+            logger.info("Finished self-ping with response: '$response'")
+        }
     }
 }
 
