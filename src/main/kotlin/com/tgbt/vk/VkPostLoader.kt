@@ -2,9 +2,12 @@ package com.tgbt.vk
 
 import io.ktor.client.HttpClient
 import io.ktor.client.request.get
+import org.slf4j.LoggerFactory
 
 private const val VK_API_VERSION = 5.120
 private const val MAX_POSTS_COUNT = 100
+
+private val logger = LoggerFactory.getLogger(VkPostLoader::class.java)
 
 class VkPostLoader(private val http: HttpClient, token: String) {
     private val apiBaseUrl = "https://api.vk.com/method/wall.get?v=$VK_API_VERSION&filter=owner&access_token=$token"
@@ -17,6 +20,7 @@ class VkPostLoader(private val http: HttpClient, token: String) {
         do {
             val count = if (remainig < MAX_POSTS_COUNT) remainig else MAX_POSTS_COUNT
             val url = "$apiBaseUrl&count=$count&offset=$offset&owner_id=$communityId"
+            logger.info("Fetching from $url")
             val pageItems = http.get<VkWallGet>(url).response.items
             items.addAll(pageItems)
             offset += MAX_POSTS_COUNT
