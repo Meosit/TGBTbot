@@ -17,7 +17,6 @@ class TgMessageSender(private val httpClient: HttpClient, apiToken: String) {
             url("$apiUrl/editMessageText")
             parameter("text", output.markdown())
             parameter("parse_mode", "Markdown")
-            parameter("disable_web_page_preview", false)
             parameter("chat_id", chatId)
             parameter("message_id", messageId)
             val keyboardJson = output.keyboardJson()
@@ -30,7 +29,6 @@ class TgMessageSender(private val httpClient: HttpClient, apiToken: String) {
             url("$apiUrl/sendMessage")
             parameter("text", output.markdown())
             parameter("parse_mode", "Markdown")
-            parameter("disable_web_page_preview", true)
             parameter("chat_id", chatId)
             replyMessageId?.let { parameter("reply_to_message_id", it.toString()) }
             output.keyboardJson()?.let { parameter("reply_markup", it) }
@@ -43,7 +41,6 @@ class TgMessageSender(private val httpClient: HttpClient, apiToken: String) {
             parameter("caption", output.markdown())
             parameter("photo", output.imageUrl())
             parameter("parse_mode", "Markdown")
-            parameter("disable_web_page_preview", true)
             parameter("chat_id", chatId)
             output.keyboardJson()?.let { parameter("reply_markup", it) }
         }

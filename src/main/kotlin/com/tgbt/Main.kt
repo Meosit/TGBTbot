@@ -3,6 +3,7 @@ package com.tgbt
 import com.tgbt.bot.MessageContext
 import com.tgbt.bot.owner.*
 import com.tgbt.grammar.*
+import com.tgbt.misc.trimToLength
 import com.tgbt.post.PostStore
 import com.tgbt.post.toPost
 import com.tgbt.settings.Setting.*
@@ -44,6 +45,7 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonConfiguration
 import org.slf4j.LoggerFactory
+import java.io.InputStreamReader
 import java.io.PrintWriter
 import java.io.StringWriter
 import java.net.URI
@@ -96,6 +98,8 @@ fun Application.main() {
                     val chatId = msg.chat.id.toString()
                     if (chatId in ownerIds && command != null) {
                         when {
+                            command.startsWith("/help") -> tgMessageSender
+                                .sendChatMessage(chatId, TgTextOutput(loadResourceAsString("help.owner.md")))
                             command.startsWith(CONDITION_COMMAND) -> msgContext.handleConditionCommand()
                             command.startsWith(FORWARDING_COMMAND) -> msgContext.handleForwardingCommand()
                             command.startsWith(CHANNEL_COMMAND) -> msgContext.handleChannelCommand()
@@ -158,10 +162,14 @@ fun Application.main() {
 
                     try {
                         postsToForward?.forEach {
-                            when {
-                                usePhotoMode && it.imageUrl != null && it.text.length in 0..1024 ->
-                                    tgMessageSender.sendChatPhoto(targetChannel, TgImagePostOutput(it))
-                                else -> tgMessageSender.sendChatMessage(targetChannel, TgLongPostOutput(it))
+                            if (postStore.insert(it)) {
+                                logger.info("Inserted new post ${it.id} '${it.text.trimToLength(50, "…")}'")
+                                when {
+                                    usePhotoMode && it.imageUrl != null && it.text.length in 0..1024 ->
+                                        tgMessageSender.sendChatPhoto(targetChannel, TgImagePostOutput(it))
+                                    else -> tgMessageSender.sendChatMessage(targetChannel, TgLongPostOutput(it))
+                                }
+                                delay(1000)
                             }
                         }
                     } catch (e: Exception) {
@@ -230,3 +238,8 @@ private fun insertDefaultSettings(settings: Settings, json: Json) = with(setting
         )
     )
 }
+
+private fun loadResourceAsString(resourceBaseName: String): String = Settings::class.java.classLoader
+    .getResourceAsStream(resourceBaseName)
+    .let { it ?: throw IllegalStateException("Null resource stream for $resourceBaseName") }
+    .use { InputStreamReader(it).use(InputStreamReader::readText) }
