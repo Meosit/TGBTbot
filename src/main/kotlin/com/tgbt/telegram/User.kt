@@ -1,4 +1,4 @@
-package by.mksn.inintobot.telegram
+package com.tgbt.telegram
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable

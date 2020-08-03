@@ -1,8 +1,7 @@
 package com.tgbt
 
-import com.github.h0tk3y.betterParse.grammar.tryParseToEnd
-import com.github.h0tk3y.betterParse.parser.ErrorResult
-import com.github.h0tk3y.betterParse.parser.Parsed
+import com.tgbt.bot.MessageContext
+import com.tgbt.bot.owner.*
 import com.tgbt.grammar.*
 import com.tgbt.post.PostStore
 import com.tgbt.post.toPost
@@ -52,14 +51,6 @@ import java.util.concurrent.TimeUnit
 
 private val logger = LoggerFactory.getLogger("MainKt")
 
-private const val CONDITION_COMMAND = "/condition "
-private const val FORWARDING_COMMAND = "/forwarding "
-private const val CHANNEL_COMMAND = "/channel "
-private const val VK_ID_COMMAND = "/vkid "
-private const val CHECK_PERIOD_COMMAND = "/check "
-private const val RETENTION_PERIOD_COMMAND = "/retention "
-private const val POSTS_COUNT_COMMAND = "/count "
-private const val PHOTO_MODE_COMMAND = "/photomode "
 
 fun main(args: Array<String>) = EngineMain.main(args)
 
@@ -98,73 +89,22 @@ fun Application.main() {
             try {
                 val update = call.receive<Update>()
                 val msg = update.message
-                logger.info("Recieved $update")
+                logger.info("Received $update")
                 if (msg != null) {
+                    val msgContext = MessageContext(postStore, settings, json, tgMessageSender, msg)
                     val command = msg.text
                     val chatId = msg.chat.id.toString()
                     if (chatId in ownerIds && command != null) {
                         when {
-                            command.startsWith(CONDITION_COMMAND) -> handleConditionCommand(
-                                command,
-                                json,
-                                settings,
-                                tgMessageSender,
-                                chatId,
-                                msg.messageId
-                            )
-                            command.startsWith(FORWARDING_COMMAND) -> handleForwardingCommand(
-                                command,
-                                settings,
-                                tgMessageSender,
-                                chatId,
-                                msg.messageId
-                            )
-                            command.startsWith(CHANNEL_COMMAND) -> handleChannelCommand(
-                                command,
-                                settings,
-                                tgMessageSender,
-                                chatId,
-                                msg.messageId
-                            )
-                            command.startsWith(VK_ID_COMMAND) -> handleVkIdCommand(
-                                command,
-                                settings,
-                                tgMessageSender,
-                                chatId,
-                                msg.messageId
-                            )
-                            command.startsWith(CHECK_PERIOD_COMMAND) -> handleCheckPeriodCommand(
-                                command,
-                                settings,
-                                tgMessageSender,
-                                chatId,
-                                msg.messageId
-                            )
-                            command.startsWith(RETENTION_PERIOD_COMMAND) -> handleRetentionPeriodCommand(
-                                command,
-                                settings,
-                                tgMessageSender,
-                                chatId,
-                                msg.messageId
-                            )
-                            command.startsWith(POSTS_COUNT_COMMAND) -> handlePostCountCommand(
-                                command,
-                                settings,
-                                tgMessageSender,
-                                chatId,
-                                msg.messageId
-                            )
-                            command.startsWith(PHOTO_MODE_COMMAND) -> handlePhotoModeCommand(
-                                command,
-                                settings,
-                                tgMessageSender,
-                                chatId,
-                                msg.messageId
-                            )
-                            else -> tgMessageSender.sendChatMessage(
-                                chatId,
-                                TgTextOutput("Unknown command")
-                            )
+                            command.startsWith(CONDITION_COMMAND) -> msgContext.handleConditionCommand()
+                            command.startsWith(FORWARDING_COMMAND) -> msgContext.handleForwardingCommand()
+                            command.startsWith(CHANNEL_COMMAND) -> msgContext.handleChannelCommand()
+                            command.startsWith(VK_ID_COMMAND) -> msgContext.handleVkIdCommand()
+                            command.startsWith(CHECK_PERIOD_COMMAND) -> msgContext.handleCheckPeriodCommand()
+                            command.startsWith(RETENTION_PERIOD_COMMAND) -> msgContext.handleRetentionPeriodCommand()
+                            command.startsWith(POSTS_COUNT_COMMAND) -> msgContext.handlePostCountCommand()
+                            command.startsWith(PHOTO_MODE_COMMAND) -> msgContext.handlePhotoModeCommand()
+                            else -> tgMessageSender.sendChatMessage(chatId, TgTextOutput("Unknown command"))
                         }
                     } else {
                         logger.info("Unknown user ${msg.chat.username} ${msg.chat.firstName} ${msg.chat.lastName} tried to use this bot")
@@ -231,6 +171,18 @@ fun Application.main() {
                         ownerIds.forEach { tgMessageSender.sendChatMessage(it, output) }
                     }
 
+                    try {
+                        val retentionDays = settings[RETENTION_PERIOD_DAYS].toInt()
+                        logger.info("Deleting posts created more than $retentionDays days ago")
+                        val deleted = postStore.cleanupOldPosts(retentionDays)
+                        logger.info("Deleted $deleted posts created more than $retentionDays days ago")
+                    } catch (e: Exception) {
+                        val message = "Failed to send posts to TG, please check logs, error message:\n`${e.message}`"
+                        logger.error(message, e)
+                        val output = TgTextOutput(message)
+                        ownerIds.forEach { tgMessageSender.sendChatMessage(it, output) }
+                    }
+
                 } else {
                     logger.info("Forwarding disabled, skipping...")
                 }
@@ -250,203 +202,6 @@ fun Application.main() {
     }
 }
 
-private suspend fun handleConditionCommand(
-    command: String,
-    json: Json,
-    settings: Settings,
-    tgMessageSender: TgMessageSender,
-    chatId: String,
-    messageId: Long
-) {
-    when (val maybeExpr = ConditionGrammar.tryParseToEnd(command.removePrefix(CONDITION_COMMAND))) {
-        is Parsed -> {
-            val exprJson = json.stringify(Expr.serializer(), maybeExpr.value)
-            settings[CONDITION_EXPR] = exprJson
-            val markdownText = if (exprJson == settings[CONDITION_EXPR])
-                "Condition updated successfully" else "Failed to save condition to database"
-            tgMessageSender.sendChatMessage(chatId, TgTextOutput(markdownText), messageId)
-        }
-        is ErrorResult -> {
-            tgMessageSender.sendChatMessage(
-                chatId,
-                TgTextOutput("Invalid condition syntax"), messageId
-            )
-        }
-    }
-}
-
-private suspend fun handleForwardingCommand(
-    command: String,
-    settings: Settings,
-    tgMessageSender: TgMessageSender,
-    chatId: String,
-    messageId: Long
-) {
-    when (val value = command.removePrefix(FORWARDING_COMMAND)) {
-        "" -> {
-            tgMessageSender.sendChatMessage(chatId, TgTextOutput("Argument expected"), messageId)
-        }
-        "true", "false" -> {
-            settings[FORWARDING_ENABLED] = value
-            val markdownText = if (value == "true")
-                "VK -> TG Post forwarding enabled" else "VK -> TG Post forwarding disabled"
-            tgMessageSender.sendChatMessage(chatId, TgTextOutput(markdownText), messageId)
-        }
-        else -> {
-            tgMessageSender.sendChatMessage(chatId, TgTextOutput("Invalid argument '$value'"), messageId)
-        }
-    }
-}
-
-private suspend fun handlePhotoModeCommand(
-    command: String,
-    settings: Settings,
-    tgMessageSender: TgMessageSender,
-    chatId: String,
-    messageId: Long
-) {
-    when (val value = command.removePrefix(PHOTO_MODE_COMMAND)) {
-        "" -> {
-            tgMessageSender.sendChatMessage(chatId, TgTextOutput("Argument expected"), messageId)
-        }
-        "true", "false" -> {
-            settings[USE_PHOTO_MODE] = value
-            val markdownText = if (value == "true")
-                "Posts with image and text length up to 1024 chars to be sent via image with caption"
-            else "Posts with image and text length up to 1024 chars to be sent via message with imaage link"
-            tgMessageSender.sendChatMessage(chatId, TgTextOutput(markdownText), messageId)
-        }
-        else -> {
-            tgMessageSender.sendChatMessage(chatId, TgTextOutput("Invalid argument '$value'"), messageId)
-        }
-    }
-}
-
-private suspend fun handleChannelCommand(
-    command: String,
-    settings: Settings,
-    tgMessageSender: TgMessageSender,
-    chatId: String,
-    messageId: Long
-) {
-    when (val value = command.removePrefix(CHANNEL_COMMAND)) {
-        "" -> {
-            tgMessageSender.sendChatMessage(chatId, TgTextOutput("Argument expected"), messageId)
-        }
-        else -> {
-            settings[TARGET_CHANNEL] = value
-            val markdownText =
-                "Target channel is set to '$value' (please ensure that it's ID or username which starts from '@')"
-            tgMessageSender.sendChatMessage(chatId, TgTextOutput(markdownText), messageId)
-        }
-    }
-}
-
-private suspend fun handleVkIdCommand(
-    command: String,
-    settings: Settings,
-    tgMessageSender: TgMessageSender,
-    chatId: String,
-    messageId: Long
-) {
-    when (val value = command.removePrefix(VK_ID_COMMAND)) {
-        "" -> {
-            tgMessageSender.sendChatMessage(chatId, TgTextOutput("Argument expected"), messageId)
-        }
-        else -> {
-            val markdownText = if (value.toLongOrNull() != null) {
-                settings[VK_COMMUNITY_ID] = value
-                "VK community ID now is $value, please ensure that it's correct"
-            } else {
-                "Integer value expected, got '$value'"
-            }
-            tgMessageSender.sendChatMessage(chatId, TgTextOutput(markdownText), messageId)
-        }
-    }
-}
-
-
-private suspend fun handleCheckPeriodCommand(
-    command: String,
-    settings: Settings,
-    tgMessageSender: TgMessageSender,
-    chatId: String,
-    messageId: Long
-) {
-    when (val value = command.removePrefix(CHECK_PERIOD_COMMAND)) {
-        "" -> {
-            tgMessageSender.sendChatMessage(chatId, TgTextOutput("Argument expected"), messageId)
-        }
-        else -> {
-            val markdownText = if (value.toIntOrNull() != null) {
-                if (value.toInt() in 1..60) {
-                    settings[CHECK_PERIOD_MINUTES] = value
-                    "VK would be checked every $value minutes"
-                } else {
-                    "Value must be between 1 and 60"
-                }
-            } else {
-                "Integer value expected, got '$value'"
-            }
-            tgMessageSender.sendChatMessage(chatId, TgTextOutput(markdownText), messageId)
-        }
-    }
-}
-
-
-private suspend fun handleRetentionPeriodCommand(
-    command: String,
-    settings: Settings,
-    tgMessageSender: TgMessageSender,
-    chatId: String,
-    messageId: Long
-) {
-    when (val value = command.removePrefix(RETENTION_PERIOD_COMMAND)) {
-        "" -> {
-            tgMessageSender.sendChatMessage(chatId, TgTextOutput("Argument expected"), messageId)
-        }
-        else -> {
-            val markdownText = if (value.toIntOrNull() != null) {
-                if (value.toInt() > 1) {
-                    settings[RETENTION_PERIOD_DAYS] = value
-                    "Posts older than $value will be deleted from the database"
-                } else {
-                    "Retention period must be set at minimum 1 day"
-                }
-            } else {
-                "Integer value expected, got '$value'"
-            }
-            tgMessageSender.sendChatMessage(chatId, TgTextOutput(markdownText), messageId)
-        }
-    }
-}
-
-private suspend fun handlePostCountCommand(
-    command: String,
-    settings: Settings,
-    tgMessageSender: TgMessageSender,
-    chatId: String,
-    messageId: Long
-) {
-    when (val value = command.removePrefix(POSTS_COUNT_COMMAND)) {
-        "" -> {
-            tgMessageSender.sendChatMessage(chatId, TgTextOutput("Argument expected"), messageId)
-        }
-        else -> {
-            val markdownText = if (value.toIntOrNull() != null) {
-                if (value.toInt() in 1..1000) {
-                    settings[POST_COUNT_TO_LOAD] = value
-                    "Every time $value posts will be loaded from VK"
-                } else {
-                    "Value must be between 1 and 1000"
-                }
-            } else {
-                "Integer value expected, got '$value'"
-            }
-            tgMessageSender.sendChatMessage(chatId, TgTextOutput(markdownText), messageId)
-        }
-    }
-}
 
 private fun initializeDataSource(dbUrl: String) {
     val dbUri = URI(dbUrl)
