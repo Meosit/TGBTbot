@@ -4,7 +4,7 @@ import io.ktor.client.HttpClient
 import io.ktor.client.request.get
 import org.slf4j.LoggerFactory
 
-private const val VK_API_VERSION = 5.120
+private const val VK_API_VERSION = "5.122"
 private const val MAX_POSTS_COUNT = 100
 
 private val logger = LoggerFactory.getLogger(VkPostLoader::class.java)

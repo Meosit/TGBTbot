@@ -37,7 +37,7 @@ class PostStore {
 
         private const val INSERT_SQL = """INSERT INTO tg_posts (id, unix_time) VALUES (?, ?)"""
 
-        private const val DELETE_SQL = """DELETE tg_posts WHERE unix_time <= ?"""
+        private const val DELETE_SQL = """DELETE FROM tg_posts WHERE unix_time <= ?"""
     }
 
 }
