@@ -6,15 +6,16 @@ import com.tgbt.grammar.*
 import com.tgbt.misc.escapeMarkdown
 import com.tgbt.misc.trimToLength
 import com.tgbt.post.PostStore
+import com.tgbt.post.TgPreparedPost
 import com.tgbt.post.toPost
 import com.tgbt.settings.Setting
 import com.tgbt.settings.Setting.*
 import com.tgbt.settings.SettingStore
 import com.tgbt.settings.Settings
+import com.tgbt.telegram.TelegraphPostCreator
 import com.tgbt.telegram.TgMessageSender
 import com.tgbt.telegram.Update
-import com.tgbt.telegram.output.TgImagePostOutput
-import com.tgbt.telegram.output.TgLongPostOutput
+import com.tgbt.telegram.output.TgImageOutput
 import com.tgbt.telegram.output.TgTextOutput
 import com.tgbt.vk.VkPost
 import com.tgbt.vk.VkPostLoader
@@ -64,6 +65,7 @@ fun Application.main() {
     val dbUrl: String = System.getenv("DATABASE_URL")
     val vkServiceToken: String = System.getenv("VK_SERVICE_TOKEN")
     val tgBotToken: String = System.getenv("TG_BOT_TOKEN")
+    val telegraphApiToken: String = System.getenv("TELEGRAPH_TOKEN")
     val ownerIds: List<String> = System.getenv("OWNER_IDS").split(',')
 
     val json = Json(JsonConfiguration.Stable.copy(ignoreUnknownKeys = true), context = exprModule)
@@ -87,6 +89,7 @@ fun Application.main() {
     insertDefaultSettings(settings, json)
 
     val tgMessageSender = TgMessageSender(httpClient, tgBotToken)
+    val telegraphPostCreator = TelegraphPostCreator(httpClient, json, telegraphApiToken)
     val vkPostLoader = VkPostLoader(httpClient, vkServiceToken)
 
 
@@ -179,6 +182,7 @@ fun Application.main() {
 
                     try {
                         postsToForward?.forEach {
+                            val prepared = TgPreparedPost(it.text, it.imageUrl, footerMd)
                             if (postStore.insert(it)) {
                                 logger.info(
                                     "Inserted new post https://vk.com/wall${communityId}_${it.id} '${it.text.trimToLength(
@@ -187,12 +191,33 @@ fun Application.main() {
                                     )}'"
                                 )
                                 when {
-                                    usePhotoMode && it.imageUrl != null && it.text.length in 0..(1024 - footerMd.length) ->
-                                        tgMessageSender.sendChatPhoto(targetChannel, TgImagePostOutput(it, footerMd))
-                                    else -> tgMessageSender.sendChatMessage(
-                                        targetChannel,
-                                        TgLongPostOutput(it, footerMd)
-                                    )
+                                    usePhotoMode && prepared.canBeSendAsImageWithCaption -> tgMessageSender
+                                        .sendChatPhoto(
+                                            targetChannel,
+                                            TgImageOutput(prepared.withoutImage, prepared.imageUrl())
+                                        )
+                                    prepared.withImage.length > 4096 -> {
+                                        val (ok, error, result) = telegraphPostCreator.createPost(prepared)
+                                        val fullUrlMd = when {
+                                            ok && result != null ->
+                                                "Слишком длиннобугурт, продолжение здесь: [${result.title}](${result.url})"
+                                            else -> {
+                                                val errorOutput = TgTextOutput(
+                                                    "Failed to create Telegraph post: " +
+                                                            (error?.escapeMarkdown() ?: "Error field unspecified")
+                                                )
+                                                ownerIds.forEach { owner ->
+                                                    tgMessageSender.sendChatMessage(owner, errorOutput)
+                                                }
+                                                "Слишком длиннобугурт, а телеграф отвалился, полная версия в [посте ВК](https://vk.com/wall${communityId}_${it.id})"
+                                            }
+                                        }
+                                        val output =
+                                            TgTextOutput(prepared.withoutImage.trimToLength(4096, "…\n\n$fullUrlMd"))
+                                        tgMessageSender.sendChatMessage(targetChannel, output)
+                                    }
+                                    else -> tgMessageSender
+                                        .sendChatMessage(targetChannel, TgTextOutput(prepared.withImage))
                                 }
                             }
                         }

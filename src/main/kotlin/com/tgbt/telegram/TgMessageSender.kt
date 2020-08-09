@@ -1,6 +1,6 @@
 package com.tgbt.telegram
 
-import com.tgbt.telegram.output.TgImagePostOutput
+import com.tgbt.telegram.output.TgImageOutput
 import com.tgbt.telegram.output.TgMessageOutput
 import io.ktor.client.HttpClient
 import io.ktor.client.request.parameter
@@ -35,7 +35,7 @@ class TgMessageSender(private val httpClient: HttpClient, apiToken: String) {
         }
     }
 
-    suspend fun sendChatPhoto(chatId: String, output: TgImagePostOutput) {
+    suspend fun sendChatPhoto(chatId: String, output: TgImageOutput) {
         httpClient.post<String> {
             url("$apiUrl/sendPhoto")
             parameter("caption", output.markdown())
