@@ -48,13 +48,13 @@ data class Views(val operator: ConditionalOperator, val number: Int) : Expr() {
 @Serializable
 @SerialName("and_operator")
 data class And(val l: Expr, val r: Expr) : Expr() {
-    override fun evaluate(stats: PostStats) = l.evaluate(stats) && l.evaluate(stats)
+    override fun evaluate(stats: PostStats) = l.evaluate(stats) && r.evaluate(stats)
 }
 
 @Serializable
 @SerialName("or_operator")
 data class Or(val l: Expr, val r: Expr) : Expr() {
-    override fun evaluate(stats: PostStats) = l.evaluate(stats) || l.evaluate(stats)
+    override fun evaluate(stats: PostStats) = l.evaluate(stats) || r.evaluate(stats)
 }
 
 @Serializable
