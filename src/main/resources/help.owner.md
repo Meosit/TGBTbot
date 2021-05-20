@@ -11,5 +11,5 @@ You're the owner of this bot, so you're able to change the following settings:
 /count `<posts_to_load>` - number of posts to load from VK on every check, default to 300
 /condition `condition expression` - modify expression to filter posts which should be forwarded to telegram, there are 4 available criteria: `likes`, `commnets`, `views`, `reposts`. Supported operators: `and`, `or`, `not`. Example expression: `(likes >= 1000) or (reposts >= 15)`
 /footer `footer markdown` - modify/add footer markdown to be added at the end of each message (with one empty line delimiter) 
-/send_stats `true|false` - if true, will send a count (if more than 1) of forwarded posts for every owner each time it happens 
-/force_forward - trigger a post forwarding manually as a result of this command 
+/sendstats `true|false` - if true, will send a count (if more than 1) of forwarded posts for every owner each time it happens 
+/forceforward - trigger a post forwarding manually as a result of this command 

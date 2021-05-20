@@ -5,7 +5,7 @@ import com.tgbt.settings.Setting
 import com.tgbt.telegram.output.TgTextOutput
 
 
-const val SEND_STATUS_COMMAND = "/send_status "
+const val SEND_STATUS_COMMAND = "/sendstatus "
 
 suspend fun MessageContext.handleSendStatusCommand() {
     when (val value = message.removePrefix(SEND_STATUS_COMMAND)) {

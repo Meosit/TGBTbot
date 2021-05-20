@@ -122,7 +122,7 @@ fun Application.main() {
                             command.startsWith(POSTS_COUNT_COMMAND) -> msgContext.handlePostCountCommand()
                             command.startsWith(PHOTO_MODE_COMMAND) -> msgContext.handlePhotoModeCommand()
                             command.startsWith(SEND_STATUS_COMMAND) -> msgContext.handleSendStatusCommand()
-                            command.startsWith("/force_forward") -> {
+                            command.startsWith("/forceforward") -> {
                                 forwardVkPosts(settings, json, vkPostLoader, postStore, ownerIds, tgMessageSender, telegraphPostCreator)
                                 ownerIds.forEach { tgMessageSender.sendChatMessage(it, TgTextOutput("Forward check finished")) }
                             }
