@@ -56,12 +56,10 @@ import java.net.URI
 import java.util.concurrent.TimeUnit
 
 private val logger = LoggerFactory.getLogger("MainKt")
-private val SELF_PING_DELAY = TimeUnit.MINUTES.toMillis(10)
 
 fun main(args: Array<String>) = EngineMain.main(args)
 
 fun Application.main() {
-    val appUrl: String = System.getenv("APP_URL")
     val dbUrl: String = System.getenv("DATABASE_URL")
     val vkServiceToken: String = System.getenv("VK_SERVICE_TOKEN")
     val tgBotToken: String = System.getenv("TG_BOT_TOKEN")
@@ -123,14 +121,22 @@ fun Application.main() {
                             command.startsWith(RETENTION_PERIOD_COMMAND) -> msgContext.handleRetentionPeriodCommand()
                             command.startsWith(POSTS_COUNT_COMMAND) -> msgContext.handlePostCountCommand()
                             command.startsWith(PHOTO_MODE_COMMAND) -> msgContext.handlePhotoModeCommand()
+                            command.startsWith(SEND_STATUS_COMMAND) -> msgContext.handleSendStatusCommand()
+                            command.startsWith("/force_forward") -> {
+                                forwardVkPosts(settings, json, vkPostLoader, postStore, ownerIds, tgMessageSender, telegraphPostCreator)
+                                ownerIds.forEach { tgMessageSender.sendChatMessage(it, TgTextOutput("Forward check finished")) }
+                            }
                             else -> tgMessageSender.sendChatMessage(chatId, TgTextOutput("Unknown command"))
                         }
                     } else {
                         logger.info("Unknown user ${msg.chat.username} ${msg.chat.firstName} ${msg.chat.lastName} tried to use this bot")
                         // do nothing for now
                     }
+                } else {
+                    logger.info("No message, do nothing with this update")
                 }
             } catch (e: Exception) {
+                logger.error("Received exception while handling update: ${e.message}")
                 val sw = StringWriter()
                 e.printStackTrace(PrintWriter(sw))
                 (e as? ClientRequestException)?.response?.content?.let {
@@ -149,109 +155,13 @@ fun Application.main() {
     launch {
         do {
             try {
-                val enabled = settings[FORWARDING_ENABLED].toBoolean()
-                if (enabled) {
-                    logger.info("Checking for new posts")
-                    val postsCount = settings[POST_COUNT_TO_LOAD].toInt()
-                    val condition = json.parse(Expr.serializer(), settings[CONDITION_EXPR])
-                    val communityId = settings[VK_COMMUNITY_ID].toLong()
-                    val targetChannel = settings[TARGET_CHANNEL]
-                    val usePhotoMode = settings[USE_PHOTO_MODE].toBoolean()
-                    val footerMd = settings[FOOTER_MD]
-
-                    val postsToForward = try {
-                        vkPostLoader
-                            .load(postsCount, communityId)
-                            .filter { it.isPinned + it.markedAsAds == 0 }
-                            .map(VkPost::toPost)
-                            .filter { condition.evaluate(it.stats) }
-                            .also { logger.info("${it.size} posts left after filtering by forward condition") }
-                            .filterNot { postStore.isPostedToTG(it) }
-                            .sortedBy { it.unixTime }
-                            .also { logger.info("${it.size} after checking for already forwarded posts") }
-                            .take(20)
-                            .also { logger.info("Taking only first ${it.size} to avoid request rate errors") }
-                    } catch (e: Exception) {
-                        val message =
-                            "Failed to load or parse VK posts, please check logs, error message:\n`${e.message}`"
-                        logger.error(message, e)
-                        val output = TgTextOutput(message)
-                        ownerIds.forEach { tgMessageSender.sendChatMessage(it, output) }
-                        null
-                    }
-
-                    try {
-                        postsToForward?.forEach {
-                            val prepared = TgPreparedPost(it.text, it.imageUrl, footerMd)
-                            if (postStore.insert(it)) {
-                                logger.info(
-                                    "Inserted new post https://vk.com/wall${communityId}_${it.id} '${it.text.trimToLength(
-                                        50,
-                                        "…"
-                                    )}'"
-                                )
-                                when {
-                                    usePhotoMode && prepared.canBeSendAsImageWithCaption -> tgMessageSender
-                                        .sendChatPhoto(
-                                            targetChannel,
-                                            TgImageOutput(prepared.withoutImage, prepared.imageUrl())
-                                        )
-                                    prepared.withImage.length > 4096 -> {
-                                        val (ok, error, result) = telegraphPostCreator.createPost(prepared)
-                                        val fullUrlMd = when {
-                                            ok && result != null ->
-                                                "Слишком длиннобугурт, продолжение здесь: [${result.title}](${result.url})"
-                                            else -> {
-                                                val errorOutput = TgTextOutput(
-                                                    "Failed to create Telegraph post: " +
-                                                            (error?.escapeMarkdown() ?: "Error field unspecified")
-                                                )
-                                                ownerIds.forEach { owner ->
-                                                    tgMessageSender.sendChatMessage(owner, errorOutput)
-                                                }
-                                                "Слишком длиннобугурт, а телеграф отвалился, полная версия в [посте ВК](https://vk.com/wall${communityId}_${it.id})"
-                                            }
-                                        }
-                                        val output =
-                                            TgTextOutput(prepared.withoutImage.trimToLength(4096, "…\n\n$fullUrlMd"))
-                                        tgMessageSender.sendChatMessage(targetChannel, output)
-                                    }
-                                    else -> tgMessageSender
-                                        .sendChatMessage(targetChannel, TgTextOutput(prepared.withImage))
-                                }
-                            }
-                        }
-                    } catch (e: Exception) {
-                        val clientError = (e as? ClientRequestException)?.response?.content?.readUTF8Line()
-                        val message =
-                            "Failed to send posts to TG, please check logs, error message:\n`${clientError ?: e.message}`"
-                        logger.error(message, e)
-                        val output = TgTextOutput(message)
-                        ownerIds.forEach { tgMessageSender.sendChatMessage(it, output) }
-                    }
-
-                    try {
-                        val retentionDays = settings[RETENTION_PERIOD_DAYS].toInt()
-                        logger.info("Deleting posts created more than $retentionDays days ago")
-                        val deleted = postStore.cleanupOldPosts(retentionDays)
-                        logger.info("Deleted $deleted posts created more than $retentionDays days ago")
-                    } catch (e: Exception) {
-                        val message = "Failed to send posts to TG, please check logs, error message:\n`${e.message}`"
-                        logger.error(message, e)
-                        val output = TgTextOutput(message)
-                        ownerIds.forEach { tgMessageSender.sendChatMessage(it, output) }
-                    }
-
-                } else {
-                    logger.info("Forwarding disabled, skipping...")
-                }
+                forwardVkPosts(settings, json, vkPostLoader, postStore, ownerIds, tgMessageSender, telegraphPostCreator)
                 val delayMinutes = settings[CHECK_PERIOD_MINUTES].toLong()
-                logger.info("Next check after for $delayMinutes minutes")
+                logger.info("Next check after $delayMinutes minutes")
                 val delayMillis = TimeUnit.MINUTES.toMillis(delayMinutes)
                 delay(delayMillis)
             } catch (e: Exception) {
-                val message =
-                    "Unexpected error occurred while reposting, next try in 60 seconds, error message:\n`${e.message}`"
+                val message = "Unexpected error occurred while reposting, next try in 60 seconds, error message:\n`${e.message}`"
                 logger.error(message, e)
                 (e as? ClientRequestException)?.response?.content?.let {
                     logger.error(it.readUTF8Line())
@@ -260,16 +170,146 @@ fun Application.main() {
                 ownerIds.forEach { tgMessageSender.sendChatMessage(it, output) }
                 delay(60000)
             }
-        } while (isActive)
+        } while (true)
     }
+}
 
-    launch {
-        while (isActive) {
-            delay(SELF_PING_DELAY)
-            logger.info("Starting self-ping...")
-            val response = httpClient.get<String>(appUrl)
-            logger.info("Finished self-ping with response: '$response'")
+private suspend fun forwardVkPosts(
+    settings: Settings,
+    json: Json,
+    vkPostLoader: VkPostLoader,
+    postStore: PostStore,
+    ownerIds: List<String>,
+    tgMessageSender: TgMessageSender,
+    telegraphPostCreator: TelegraphPostCreator
+) {
+    val enabled = settings[FORWARDING_ENABLED].toBoolean()
+    if (enabled) {
+        logger.info("Checking for new posts")
+        val postsCount = settings[POST_COUNT_TO_LOAD].toInt()
+        val condition = json.parse(Expr.serializer(), settings[CONDITION_EXPR])
+        val communityId = settings[VK_COMMUNITY_ID].toLong()
+        val targetChannel = settings[TARGET_CHANNEL]
+        val usePhotoMode = settings[USE_PHOTO_MODE].toBoolean()
+        val footerMd = settings[FOOTER_MD]
+        val sendStatus = settings[SEND_STATUS].toBoolean()
+
+        val stats = mutableMapOf<String, Int>()
+        val postsToForward = try {
+            vkPostLoader
+                .load(postsCount, communityId)
+                .filter { it.isPinned + it.markedAsAds == 0 }
+                .map(VkPost::toPost)
+                .also {
+                    stats["total"] = it.size
+                    logger.info("Loaded ${it.size} posts in total")
+                }
+                .filter { condition.evaluate(it.stats) }
+                .also {
+                    stats["condition"] = it.size
+                    logger.info("${it.size} posts left after filtering by forward condition")
+                }
+                .filterNot { postStore.isPostedToTG(it) }
+                .sortedBy { it.unixTime }
+                .also {
+                    stats["already"] = it.size
+                    logger.info("${it.size} after checking for already forwarded posts")
+                }
+                .take(20)
+                .also { logger.info("Taking only first ${it.size} to avoid request rate errors") }
+        } catch (e: Exception) {
+            val message =
+                "Failed to load or parse VK posts, please check logs, error message:\n`${e.message}`"
+            logger.error(message, e)
+            val output = TgTextOutput(message)
+            ownerIds.forEach { tgMessageSender.sendChatMessage(it, output) }
+            null
         }
+
+        try {
+            var forwarded = 0
+            postsToForward?.forEach {
+                val prepared = TgPreparedPost(it.text, it.imageUrl, footerMd)
+                if (postStore.insert(it)) {
+                    logger.info(
+                        "Inserted new post https://vk.com/wall${communityId}_${it.id} '${
+                            it.text.trimToLength(
+                                50,
+                                "…"
+                            )
+                        }'"
+                    )
+                    when {
+                        usePhotoMode && prepared.canBeSendAsImageWithCaption -> tgMessageSender
+                            .sendChatPhoto(
+                                targetChannel,
+                                TgImageOutput(prepared.withoutImage, prepared.imageUrl())
+                            )
+                        prepared.withImage.length > 4096 -> {
+                            val (ok, error, result) = telegraphPostCreator.createPost(prepared)
+                            val fullUrlMd = when {
+                                ok && result != null ->
+                                    "Слишком длиннобугурт, продолжение здесь: [${result.title}](${result.url})"
+                                else -> {
+                                    val errorOutput = TgTextOutput(
+                                        "Failed to create Telegraph post: " +
+                                                (error?.escapeMarkdown() ?: "Error field unspecified")
+                                    )
+                                    ownerIds.forEach { owner ->
+                                        tgMessageSender.sendChatMessage(owner, errorOutput)
+                                    }
+                                    "Слишком длиннобугурт, а телеграф отвалился, полная версия в [посте ВК](https://vk.com/wall${communityId}_${it.id})"
+                                }
+                            }
+                            val output =
+                                TgTextOutput(prepared.withoutImage.trimToLength(4096, "…\n\n$fullUrlMd"))
+                            tgMessageSender.sendChatMessage(targetChannel, output)
+                        }
+                        else -> {
+                            // footer links should not be previewed.
+                            val disableLinkPreview = footerMd.contains("https://")
+                                    && !prepared.withImage.contains("https://")
+                            tgMessageSender.sendChatMessage(
+                                targetChannel,
+                                TgTextOutput(prepared.withImage),
+                                disableLinkPreview = disableLinkPreview
+                            )
+                        }
+                    }
+                    forwarded++
+                }
+            }
+            if (sendStatus && forwarded > 0) {
+                val message = "Right now forwarded $forwarded posts from VK to Telegram:\n" +
+                        "${stats["total"]} loaded in total\n" +
+                        "${stats["condition"]} after filtering by condition\n" +
+                        "${stats["already"]} not already forwarded"
+                logger.info(message)
+                ownerIds.forEach { tgMessageSender.sendChatMessage(it, TgTextOutput(message)) }
+            }
+        } catch (e: Exception) {
+            val clientError = (e as? ClientRequestException)?.response?.content?.readUTF8Line()
+            val message =
+                "Failed to send posts to TG, please check logs, error message:\n`${clientError ?: e.message}`"
+            logger.error(message, e)
+            val output = TgTextOutput(message)
+            ownerIds.forEach { tgMessageSender.sendChatMessage(it, output) }
+        }
+
+        try {
+            val retentionDays = settings[RETENTION_PERIOD_DAYS].toInt()
+            logger.info("Deleting posts created more than $retentionDays days ago")
+            val deleted = postStore.cleanupOldPosts(retentionDays)
+            logger.info("Deleted $deleted posts created more than $retentionDays days ago")
+        } catch (e: Exception) {
+            val message = "Failed to send posts to TG, please check logs, error message:\n`${e.message}`"
+            logger.error(message, e)
+            val output = TgTextOutput(message)
+            ownerIds.forEach { tgMessageSender.sendChatMessage(it, output) }
+        }
+
+    } else {
+        logger.info("Forwarding disabled, skipping...")
     }
 }
 
@@ -292,6 +332,7 @@ private fun insertDefaultSettings(settings: Settings, json: Json) = with(setting
     putIfAbsent(FORWARDING_ENABLED, "true")
     putIfAbsent(USE_PHOTO_MODE, "true")
     putIfAbsent(FOOTER_MD, "")
+    putIfAbsent(SEND_STATUS, "true")
     putIfAbsent(
         CONDITION_EXPR, json.stringify(
             Expr.serializer(),

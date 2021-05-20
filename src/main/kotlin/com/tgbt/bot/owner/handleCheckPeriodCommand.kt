@@ -12,11 +12,11 @@ suspend fun MessageContext.handleCheckPeriodCommand() {
         "" -> tgMessageSender.sendChatMessage(chatId, TgTextOutput("Argument expected"), messageId)
         else -> {
             val markdownText = if (value.toIntOrNull() != null) {
-                if (value.toInt() in 1..60) {
+                if (value.toInt() in 5..29) {
                     settings[Setting.CHECK_PERIOD_MINUTES] = value
                     "VK would be checked every $value minutes"
                 } else {
-                    "Value must be between 1 and 60"
+                    "Value must be between 5 and 29"
                 }
             } else {
                 "Integer value expected, got '$value'"

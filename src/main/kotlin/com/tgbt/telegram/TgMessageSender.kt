@@ -24,12 +24,13 @@ class TgMessageSender(private val httpClient: HttpClient, apiToken: String) {
         }
     }
 
-    suspend fun sendChatMessage(chatId: String, output: TgMessageOutput, replyMessageId: Long? = null) {
+    suspend fun sendChatMessage(chatId: String, output: TgMessageOutput, replyMessageId: Long? = null, disableLinkPreview: Boolean = false) {
         httpClient.post<String> {
             url("$apiUrl/sendMessage")
             parameter("text", output.markdown())
             parameter("parse_mode", "Markdown")
             parameter("chat_id", chatId)
+            parameter("disable_web_page_preview", disableLinkPreview)
             replyMessageId?.let { parameter("reply_to_message_id", it.toString()) }
             output.keyboardJson()?.let { parameter("reply_markup", it) }
         }

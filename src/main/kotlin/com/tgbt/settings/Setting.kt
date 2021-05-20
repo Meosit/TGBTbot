@@ -10,6 +10,7 @@ enum class Setting {
     RETENTION_PERIOD_DAYS,
     POST_COUNT_TO_LOAD,
     USE_PHOTO_MODE,
-    FOOTER_MD
+    FOOTER_MD,
+    SEND_STATUS
 
 }

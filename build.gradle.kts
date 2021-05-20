@@ -22,9 +22,6 @@ repositories {
     mavenCentral()
     jcenter()
     maven("https://jitpack.io")
-    maven("https://kotlin.bintray.com/kotlinx")
-    maven("https://dl.bintray.com/kotlin/ktor")
-    maven("https://dl.bintray.com/hotkeytlt/maven")
 }
 
 group = "com.tgbt"
@@ -34,7 +31,7 @@ repositories {
     mavenCentral()
 }
 
-val betterParseVersion = "0.4.0"
+val betterParseVersion = "0.4.1"
 val serializationVersion = "0.20.0"
 val ktorVersion = "1.3.2"
 
