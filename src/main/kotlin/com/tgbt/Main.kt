@@ -60,6 +60,7 @@ private val logger = LoggerFactory.getLogger("MainKt")
 fun main(args: Array<String>) = EngineMain.main(args)
 
 fun Application.main() {
+    val appUrl: String = System.getenv("APP_URL")
     val dbUrl: String = System.getenv("DATABASE_URL")
     val vkServiceToken: String = System.getenv("VK_SERVICE_TOKEN")
     val tgBotToken: String = System.getenv("TG_BOT_TOKEN")
@@ -123,7 +124,7 @@ fun Application.main() {
                             command.startsWith(PHOTO_MODE_COMMAND) -> msgContext.handlePhotoModeCommand()
                             command.startsWith(SEND_STATUS_COMMAND) -> msgContext.handleSendStatusCommand()
                             command.startsWith("/forceforward") -> {
-                                forwardVkPosts(settings, json, vkPostLoader, postStore, ownerIds, tgMessageSender, telegraphPostCreator)
+                                forwardVkPosts(settings, json, vkPostLoader, postStore, ownerIds, tgMessageSender, telegraphPostCreator, forcedByOwner = true)
                                 ownerIds.forEach { tgMessageSender.sendChatMessage(it, TgTextOutput("Forward check finished")) }
                             }
                             else -> tgMessageSender.sendChatMessage(chatId, TgTextOutput("Unknown command"))
@@ -159,6 +160,7 @@ fun Application.main() {
                 val delayMinutes = settings[CHECK_PERIOD_MINUTES].toLong()
                 logger.info("Next check after $delayMinutes minutes")
                 val delayMillis = TimeUnit.MINUTES.toMillis(delayMinutes)
+                selfPing(httpClient, appUrl)
                 delay(delayMillis)
             } catch (e: Exception) {
                 val message = "Unexpected error occurred while reposting, next try in 60 seconds, error message:\n`${e.message}`"
@@ -174,6 +176,12 @@ fun Application.main() {
     }
 }
 
+private suspend fun selfPing(httpClient: HttpClient, appUrl: String) {
+    logger.info("Starting self-ping...")
+    val response = httpClient.get<String>(appUrl)
+    logger.info("Finished self-ping with response: '$response'")
+}
+
 private suspend fun forwardVkPosts(
     settings: Settings,
     json: Json,
@@ -181,7 +189,8 @@ private suspend fun forwardVkPosts(
     postStore: PostStore,
     ownerIds: List<String>,
     tgMessageSender: TgMessageSender,
-    telegraphPostCreator: TelegraphPostCreator
+    telegraphPostCreator: TelegraphPostCreator,
+    forcedByOwner: Boolean = false
 ) {
     val enabled = settings[FORWARDING_ENABLED].toBoolean()
     if (enabled) {
@@ -279,11 +288,10 @@ private suspend fun forwardVkPosts(
                     forwarded++
                 }
             }
-            if (sendStatus && forwarded > 0) {
+            if (forcedByOwner || (sendStatus && forwarded > 0)) {
                 val message = "Right now forwarded $forwarded posts from VK to Telegram:\n" +
                         "${stats["total"]} loaded in total\n" +
-                        "${stats["condition"]} after filtering by condition\n" +
-                        "${stats["already"]} not already forwarded"
+                        "${stats["condition"]} after filtering by condition\n"
                 logger.info(message)
                 ownerIds.forEach { tgMessageSender.sendChatMessage(it, TgTextOutput(message)) }
             }
