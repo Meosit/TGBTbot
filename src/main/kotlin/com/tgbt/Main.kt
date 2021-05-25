@@ -44,7 +44,6 @@ import io.ktor.serialization.json
 import io.ktor.server.netty.EngineMain
 import io.ktor.utils.io.readUTF8Line
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonConfiguration
@@ -67,7 +66,7 @@ fun Application.main() {
     val telegraphApiToken: String = System.getenv("TELEGRAPH_TOKEN")
     val ownerIds: List<String> = System.getenv("OWNER_IDS").split(',')
 
-    val json = Json(JsonConfiguration.Stable.copy(ignoreUnknownKeys = true), context = exprModule)
+    val json = Json(JsonConfiguration.Stable.copy(ignoreUnknownKeys = true, isLenient = true), context = exprModule)
 
     install(ContentNegotiation) {
         json(json, ContentType.Application.Json)
