@@ -7,7 +7,7 @@ data class TgPreparedPost(
     val maybeImage: String?,
     val footerMarkdown: String = ""
 ) {
-    val withoutImage = text.escapeMarkdown() + if (footerMarkdown.isBlank()) "" else "\n\n${footerMarkdown}"
+    val withoutImage = text.escapeMarkdown() + if (footerMarkdown.isBlank()) "" else "\n\n$footerMarkdown"
 
     val withImage = """${maybeImage?.let { "[\u200C](${it})" } ?: ""}$withoutImage"""
 

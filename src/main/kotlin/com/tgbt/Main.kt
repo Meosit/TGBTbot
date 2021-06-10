@@ -162,7 +162,7 @@ fun Application.main() {
                 selfPing(httpClient, appUrl)
                 delay(delayMillis)
             } catch (e: Exception) {
-                val message = "Unexpected error occurred while reposting, next try in 60 seconds, error message:\n`${e.message}`"
+                val message = "Unexpected error occurred while reposting, next try in 60 seconds, error message:\n`${e.message?.escapeMarkdown()}`"
                 logger.error(message, e)
                 (e as? ClientRequestException)?.response?.content?.let {
                     logger.error(it.readUTF8Line())
@@ -255,28 +255,23 @@ private suspend fun forwardVkPosts(
                             )
                         prepared.withImage.length > 4096 -> {
                             val (ok, error, result) = telegraphPostCreator.createPost(prepared)
-                            val fullUrlMd = when {
-                                ok && result != null ->
-                                    "Слишком длиннобугурт, продолжение здесь: [${result.title}](${result.url})"
+                            when {
+                                ok && result != null -> {
+                                    val output = TgTextOutput("Слишком длиннобугурт, поэтому читайте в телеграфе: [${result.title}](${result.url})" + if (footerMd.isBlank()) "" else "\n\n$footerMd")
+                                    tgMessageSender.sendChatMessage(targetChannel, output, disableLinkPreview = false)
+                                }
                                 else -> {
-                                    val errorOutput = TgTextOutput(
-                                        "Failed to create Telegraph post: " +
-                                                (error?.escapeMarkdown() ?: "Error field unspecified")
-                                    )
-                                    ownerIds.forEach { owner ->
-                                        tgMessageSender.sendChatMessage(owner, errorOutput)
-                                    }
-                                    "Слишком длиннобугурт, а телеграф отвалился, полная версия в [посте ВК](https://vk.com/wall${communityId}_${it.id})"
+                                    val message = "Failed to create Telegraph post, please check logs, error message:\n`${error}`"
+                                    logger.error(message)
+                                    val output = TgTextOutput(message)
+                                    ownerIds.forEach { id -> tgMessageSender.sendChatMessage(id, output) }
                                 }
                             }
-                            val output =
-                                TgTextOutput(prepared.withoutImage.trimToLength(4096, "…\n\n$fullUrlMd"))
-                            tgMessageSender.sendChatMessage(targetChannel, output)
                         }
                         else -> {
                             // footer links should not be previewed.
                             val disableLinkPreview = footerMd.contains("https://")
-                                    && !prepared.withImage.contains("https://")
+                                    && !prepared.text.contains("https://")
                             tgMessageSender.sendChatMessage(
                                 targetChannel,
                                 TgTextOutput(prepared.withImage),

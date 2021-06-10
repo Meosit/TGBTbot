@@ -6,10 +6,11 @@ import io.ktor.client.HttpClient
 import io.ktor.client.call.receive
 import io.ktor.client.features.ClientRequestException
 import io.ktor.client.features.ServerResponseException
-import io.ktor.client.request.parameter
 import io.ktor.client.request.post
 import io.ktor.client.request.url
 import io.ktor.client.statement.readText
+import io.ktor.http.*
+import io.ktor.http.content.*
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
 
@@ -19,8 +20,8 @@ class TelegraphPostCreator(private val httpClient: HttpClient, private val json:
 
     suspend fun createPost(post: TgPreparedPost): TelegraphCreateResult {
 
-        val title = post.withoutImage.lineSequence().first().trimToLength(256, "…")
-        val encodedText = json.stringify(String.serializer(), post.withoutImage)
+        val title = json.stringify(String.serializer(), post.withoutImage.lineSequence().first().trimToLength(256, "…"))
+        val encodedText = json.stringify(String.serializer(), post.text)
         val content = if (post.maybeImage != null) {
             """[$encodedText,{"tag":"img","attrs":{"src":"${post.maybeImage}"}}]"""
         } else {
@@ -29,9 +30,12 @@ class TelegraphPostCreator(private val httpClient: HttpClient, private val json:
         return try {
             httpClient.post {
                 url("$apiUrl/createPost")
-                parameter("title", title)
-                parameter("access_token", apiToken)
-                parameter("content", content)
+                body = """{
+                    "title": $title,
+                    "access_token": "$apiToken",
+                    "content": $content
+                }""".trimIndent()
+                contentType(ContentType.Application.Json)
             }
         } catch (e: ClientRequestException) {
             e.response.receive()
