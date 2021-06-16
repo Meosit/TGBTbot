@@ -30,12 +30,15 @@ class TelegraphPostCreator(private val httpClient: HttpClient, private val json:
         return try {
             httpClient.post {
                 url("$apiUrl/createPost")
-                body = """{
-                    "title": $title,
-                    "access_token": "$apiToken",
-                    "content": $content
-                }""".trimIndent()
-                contentType(ContentType.Application.Json)
+                body = TextContent("""
+                    {
+                        "title": $title,
+                        "access_token": "$apiToken",
+                        "content": $content
+                    }
+                    """.trimIndent(),
+                    ContentType.Application.Json
+                )
             }
         } catch (e: ClientRequestException) {
             e.response.receive()
