@@ -1,5 +1,8 @@
 package com.tgbt.misc
 
+import com.tgbt.bot.BotContext
+import java.io.InputStreamReader
+
 /**
  * Returns a string trimmed to the specified [length] with optional [tail] string added at the end of the trimmed string.
  * The [tail] length must be less than the target [length] as the result is required to be no longer than this value.
@@ -21,3 +24,9 @@ fun String.escapeMarkdown() = replace("*", "\\*")
  */
 infix fun String?.lettersDiffer(string: String?): Boolean =
     this?.filter(Char::isLetterOrDigit) != string?.filter(Char::isLetterOrDigit)
+
+
+fun loadResourceAsString(resourceBaseName: String): String = BotContext::class.java.classLoader
+    .getResourceAsStream(resourceBaseName)
+    .let { it ?: throw IllegalStateException("Null resource stream for $resourceBaseName") }
+    .use { InputStreamReader(it).use(InputStreamReader::readText) }

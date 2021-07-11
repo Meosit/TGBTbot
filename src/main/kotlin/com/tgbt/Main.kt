@@ -1,14 +1,13 @@
 package com.tgbt
 
+import com.tgbt.bot.BotContext
 import com.tgbt.bot.MessageContext
-import com.tgbt.bot.owner.*
 import com.tgbt.grammar.*
 import com.tgbt.misc.escapeMarkdown
 import com.tgbt.misc.trimToLength
 import com.tgbt.post.PostStore
 import com.tgbt.post.TgPreparedPost
 import com.tgbt.post.toPost
-import com.tgbt.settings.Setting
 import com.tgbt.settings.Setting.*
 import com.tgbt.settings.SettingStore
 import com.tgbt.settings.Settings
@@ -21,34 +20,25 @@ import com.tgbt.vk.VkPost
 import com.tgbt.vk.VkPostLoader
 import com.vladsch.kotlin.jdbc.HikariCP
 import com.vladsch.kotlin.jdbc.SessionImpl
-import io.ktor.application.Application
-import io.ktor.application.call
-import io.ktor.application.install
-import io.ktor.client.HttpClient
-import io.ktor.client.features.ClientRequestException
-import io.ktor.client.features.json.JsonFeature
-import io.ktor.client.features.json.serializer.KotlinxSerializer
-import io.ktor.client.request.get
-import io.ktor.features.CallLogging
-import io.ktor.features.ContentNegotiation
-import io.ktor.features.DefaultHeaders
-import io.ktor.http.ContentType
-import io.ktor.http.HttpStatusCode
-import io.ktor.request.receive
-import io.ktor.response.respond
-import io.ktor.response.respondText
-import io.ktor.routing.Routing
-import io.ktor.routing.get
-import io.ktor.routing.post
-import io.ktor.serialization.json
-import io.ktor.server.netty.EngineMain
-import io.ktor.utils.io.readUTF8Line
+import io.ktor.application.*
+import io.ktor.client.*
+import io.ktor.client.features.*
+import io.ktor.client.features.json.*
+import io.ktor.client.features.json.serializer.*
+import io.ktor.client.request.*
+import io.ktor.features.*
+import io.ktor.http.*
+import io.ktor.request.*
+import io.ktor.response.*
+import io.ktor.routing.*
+import io.ktor.serialization.*
+import io.ktor.server.netty.*
+import io.ktor.utils.io.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonConfiguration
 import org.slf4j.LoggerFactory
-import java.io.InputStreamReader
 import java.io.PrintWriter
 import java.io.StringWriter
 import java.net.URI
@@ -90,6 +80,7 @@ fun Application.main() {
     val telegraphPostCreator = TelegraphPostCreator(httpClient, json, telegraphApiToken)
     val vkPostLoader = VkPostLoader(httpClient, vkServiceToken)
 
+    val botContext = BotContext(json, ownerIds, postStore, settings, tgMessageSender, telegraphPostCreator, vkPostLoader)
 
     install(Routing) {
         post("/handle/$tgBotToken") {
@@ -98,40 +89,8 @@ fun Application.main() {
                 val msg = update.message
                 logger.info("Received $update")
                 if (msg != null) {
-                    val msgContext = MessageContext(postStore, settings, json, tgMessageSender, msg)
-                    val command = msg.text
-                    val chatId = msg.chat.id.toString()
-                    if (chatId in ownerIds && command != null) {
-                        when {
-                            command.startsWith("/help") -> tgMessageSender
-                                .sendChatMessage(chatId, TgTextOutput(loadResourceAsString("help.owner.md")))
-                            command.startsWith("/settings") -> tgMessageSender
-                                .sendChatMessage(
-                                    chatId,
-                                    TgTextOutput(
-                                        Setting.values()
-                                            .joinToString("\n") { "${it.name}: ${settings[it]}".escapeMarkdown() })
-                                )
-                            command.startsWith(CONDITION_COMMAND) -> msgContext.handleConditionCommand()
-                            command.startsWith(FORWARDING_COMMAND) -> msgContext.handleForwardingCommand()
-                            command.startsWith(CHANNEL_COMMAND) -> msgContext.handleChannelCommand()
-                            command.startsWith(FOOTER_COMMAND) -> msgContext.handleFooterCommand()
-                            command.startsWith(VK_ID_COMMAND) -> msgContext.handleVkIdCommand()
-                            command.startsWith(CHECK_PERIOD_COMMAND) -> msgContext.handleCheckPeriodCommand()
-                            command.startsWith(RETENTION_PERIOD_COMMAND) -> msgContext.handleRetentionPeriodCommand()
-                            command.startsWith(POSTS_COUNT_COMMAND) -> msgContext.handlePostCountCommand()
-                            command.startsWith(PHOTO_MODE_COMMAND) -> msgContext.handlePhotoModeCommand()
-                            command.startsWith(SEND_STATUS_COMMAND) -> msgContext.handleSendStatusCommand()
-                            command.startsWith("/forceforward") -> {
-                                forwardVkPosts(settings, json, vkPostLoader, postStore, ownerIds, tgMessageSender, telegraphPostCreator, forcedByOwner = true)
-                                ownerIds.forEach { tgMessageSender.sendChatMessage(it, TgTextOutput("Forward check finished")) }
-                            }
-                            else -> tgMessageSender.sendChatMessage(chatId, TgTextOutput("Unknown command"))
-                        }
-                    } else {
-                        logger.info("Unknown user ${msg.chat.username} ${msg.chat.firstName} ${msg.chat.lastName} tried to use this bot")
-                        // do nothing for now
-                    }
+                    val msgContext = MessageContext(botContext, msg)
+                    msgContext.handleCommand()
                 } else {
                     logger.info("No message, do nothing with this update")
                 }
@@ -155,7 +114,7 @@ fun Application.main() {
     launch {
         do {
             try {
-                forwardVkPosts(settings, json, vkPostLoader, postStore, ownerIds, tgMessageSender, telegraphPostCreator)
+                forwardVkPosts(botContext)
                 val delayMinutes = settings[CHECK_PERIOD_MINUTES].toLong()
                 logger.info("Next check after $delayMinutes minutes")
                 val delayMillis = TimeUnit.MINUTES.toMillis(delayMinutes)
@@ -181,16 +140,10 @@ private suspend fun selfPing(httpClient: HttpClient, appUrl: String) {
     logger.info("Finished self-ping with response: '$response'")
 }
 
-private suspend fun forwardVkPosts(
-    settings: Settings,
-    json: Json,
-    vkPostLoader: VkPostLoader,
-    postStore: PostStore,
-    ownerIds: List<String>,
-    tgMessageSender: TgMessageSender,
-    telegraphPostCreator: TelegraphPostCreator,
+suspend fun forwardVkPosts(
+    bot: BotContext,
     forcedByOwner: Boolean = false
-) {
+) = with (bot) {
     val enabled = settings[FORWARDING_ENABLED].toBoolean()
     if (enabled) {
         logger.info("Checking for new posts")
@@ -345,8 +298,3 @@ private fun insertDefaultSettings(settings: Settings, json: Json) = with(setting
         )
     )
 }
-
-private fun loadResourceAsString(resourceBaseName: String): String = Settings::class.java.classLoader
-    .getResourceAsStream(resourceBaseName)
-    .let { it ?: throw IllegalStateException("Null resource stream for $resourceBaseName") }
-    .use { InputStreamReader(it).use(InputStreamReader::readText) }
