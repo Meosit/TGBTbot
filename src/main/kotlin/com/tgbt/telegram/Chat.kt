@@ -13,3 +13,9 @@ data class Chat(
     @SerialName("last_name") val lastName: String? = null,
     val description: String? = null
 )
+
+val Chat.verboseUserName: String get() =
+    username?.let { "@$it" } ?: firstName?.let { "[$firstName${lastName?.let { " $it" } ?: ""}](tg://user?id=$id)" } ?: "$title (Group)"
+
+val Chat.isPrivate: Boolean get() = type == "private"
+val Chat.isGroup: Boolean get() = type == "group" || type == "supergroup"

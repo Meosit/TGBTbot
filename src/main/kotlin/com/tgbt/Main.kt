@@ -11,6 +11,7 @@ import com.tgbt.post.toPost
 import com.tgbt.settings.Setting.*
 import com.tgbt.settings.SettingStore
 import com.tgbt.settings.Settings
+import com.tgbt.suggestion.SuggestionStore
 import com.tgbt.telegram.TelegraphPostCreator
 import com.tgbt.telegram.TgMessageSender
 import com.tgbt.telegram.Update
@@ -54,7 +55,7 @@ fun Application.main() {
     val vkServiceToken: String = System.getenv("VK_SERVICE_TOKEN")
     val tgBotToken: String = System.getenv("TG_BOT_TOKEN")
     val telegraphApiToken: String = System.getenv("TELEGRAPH_TOKEN")
-    val ownerIds: List<String> = System.getenv("OWNER_IDS").split(',')
+    val ownerIds: List<String> = (System.getenv("OWNER_IDS") ?: "").split(',')
 
     val json = Json(JsonConfiguration.Stable.copy(ignoreUnknownKeys = true, isLenient = true), context = exprModule)
 
@@ -73,6 +74,7 @@ fun Application.main() {
     }
 
     val postStore = PostStore()
+    val suggestionStore = SuggestionStore()
     val settings = Settings(SettingStore())
     insertDefaultSettings(settings, json)
 
@@ -80,17 +82,17 @@ fun Application.main() {
     val telegraphPostCreator = TelegraphPostCreator(httpClient, json, telegraphApiToken)
     val vkPostLoader = VkPostLoader(httpClient, vkServiceToken)
 
-    val botContext = BotContext(json, ownerIds, postStore, settings, tgMessageSender, telegraphPostCreator, vkPostLoader)
+    val botContext = BotContext(json, ownerIds, postStore, suggestionStore, settings, tgMessageSender, telegraphPostCreator, vkPostLoader)
 
     install(Routing) {
         post("/handle/$tgBotToken") {
             try {
                 val update = call.receive<Update>()
-                val msg = update.message
+                val msg = update.message ?: update.editedMessage
                 logger.info("Received $update")
                 if (msg != null) {
-                    val msgContext = MessageContext(botContext, msg)
-                    msgContext.handleCommand()
+                    val msgContext = MessageContext(botContext, msg, isEdit = update.editedMessage != null)
+                    msgContext.handleUpdate()
                 } else {
                     logger.info("No message, do nothing with this update")
                 }
@@ -284,7 +286,7 @@ private fun insertDefaultSettings(settings: Settings, json: Json) = with(setting
     putIfAbsent(RETENTION_PERIOD_DAYS, "15")
     putIfAbsent(POST_COUNT_TO_LOAD, "300")
     putIfAbsent(VK_COMMUNITY_ID, "-57536014")
-    putIfAbsent(FORWARDING_ENABLED, "true")
+    putIfAbsent(FORWARDING_ENABLED, "false")
     putIfAbsent(USE_PHOTO_MODE, "true")
     putIfAbsent(FOOTER_MD, "")
     putIfAbsent(SEND_STATUS, "true")
@@ -297,4 +299,11 @@ private fun insertDefaultSettings(settings: Settings, json: Json) = with(setting
             )
         )
     )
+    putIfAbsent(SUGGESTIONS_ENABLED, "true")
+    putIfAbsent(EDITOR_CHAT_ID, "-594088198")
+    putIfAbsent(USER_EDIT_TIME_MINUTES, "10")
+    putIfAbsent(USER_SUGGESTION_DELAY_MINUTES, "30")
+    putIfAbsent(SUGGESTION_POLLING_DELAY_MINUTES, "10")
+    putIfAbsent(SEND_PROMOTION_FEEDBACK, "true")
+    putIfAbsent(SEND_DELETION_FEEDBACK, "true")
 }

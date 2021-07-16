@@ -6,12 +6,12 @@ import com.tgbt.settings.Setting
 import com.tgbt.telegram.output.TgTextOutput
 
 
-class CheckPeriodCommand : BotCommand {
+object CheckPeriodCommand : BotCommand {
     override val command = "/check "
 
     override suspend fun MessageContext.handle() = with(bot) {
-        when (val value = message.removePrefix(command)) {
-            "" -> tgMessageSender.sendChatMessage(chatId, TgTextOutput("Argument expected"), messageId)
+        when (val value = messageText.removePrefix(command)) {
+            "" -> tgMessageSender.sendChatMessage(chatId, TgTextOutput("Argument expected"), message.id)
             else -> {
                 val markdownText = if (value.toIntOrNull() != null) {
                     if (value.toInt() in 5..29) {
@@ -23,7 +23,7 @@ class CheckPeriodCommand : BotCommand {
                 } else {
                     "Integer value expected, got '$value'"
                 }
-                tgMessageSender.sendChatMessage(chatId, TgTextOutput(markdownText), messageId)
+                tgMessageSender.sendChatMessage(chatId, TgTextOutput(markdownText), message.id)
             }
         }
     }

@@ -15,7 +15,6 @@ class Settings(private val store: SettingStore) {
     }
 
     operator fun get(key: Setting): String = settings.value.getValue(key.name)
-    fun has(key: Setting) = settings.value.containsKey(key.name)
 
     fun putIfAbsent(key: Setting, value: String) {
         synchronized(this) {

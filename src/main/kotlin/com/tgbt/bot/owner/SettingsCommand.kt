@@ -6,7 +6,7 @@ import com.tgbt.misc.escapeMarkdown
 import com.tgbt.settings.Setting
 import com.tgbt.telegram.output.TgTextOutput
 
-class SettingsCommand : BotCommand {
+object SettingsCommand : BotCommand {
     override val command: String = "/settings"
 
     override suspend fun MessageContext.handle() = bot.tgMessageSender.sendChatMessage(

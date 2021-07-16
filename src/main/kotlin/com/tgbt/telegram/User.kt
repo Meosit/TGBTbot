@@ -12,3 +12,6 @@ data class User(
     val username: String? = null,
     @SerialName("language_code") val languageCode: String? = null
 )
+
+val User.verboseUserName: String get() =
+    username?.let { "@$it" } ?: "[$firstName${lastName?.let { " $it" } ?: ""}](tg://user?id=$id)"

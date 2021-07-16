@@ -5,20 +5,20 @@ import com.tgbt.bot.MessageContext
 import com.tgbt.settings.Setting
 import com.tgbt.telegram.output.TgTextOutput
 
-class SendStatusCommand : BotCommand {
+object SendStatusCommand : BotCommand {
     override val command = "/sendstatus "
 
     override suspend fun MessageContext.handle() = with(bot) {
-        when (val value = message.removePrefix(command)) {
-            "" -> tgMessageSender.sendChatMessage(chatId, TgTextOutput("Argument expected"), messageId)
+        when (val value = messageText.removePrefix(command)) {
+            "" -> tgMessageSender.sendChatMessage(chatId, TgTextOutput("Argument expected"), message.id)
             "true", "false" -> {
                 settings[Setting.SEND_STATUS] = value
                 val markdownText = if (value == "true")
                     "Enabled sending post forward status each time" else "Enabled sending post forward status each time"
-                tgMessageSender.sendChatMessage(chatId, TgTextOutput(markdownText), messageId)
+                tgMessageSender.sendChatMessage(chatId, TgTextOutput(markdownText), message.id)
             }
             else -> {
-                tgMessageSender.sendChatMessage(chatId, TgTextOutput("Invalid argument '$value'"), messageId)
+                tgMessageSender.sendChatMessage(chatId, TgTextOutput("Invalid argument '$value'"), message.id)
             }
         }
     }

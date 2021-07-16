@@ -6,13 +6,13 @@ import com.tgbt.settings.Setting
 import com.tgbt.telegram.output.TgTextOutput
 
 
-class FooterCommand : BotCommand {
+object FooterCommand : BotCommand {
     override val command = "/footer "
 
     override suspend fun MessageContext.handle() = with(bot) {
-        val value = message.removePrefix(command)
+        val value = messageText.removePrefix(command)
         settings[Setting.FOOTER_MD] = value
         val md = "Footer '$value' would be added at the end of each message with one empty line delimiter"
-        tgMessageSender.sendChatMessage(chatId, TgTextOutput(md), messageId)
+        tgMessageSender.sendChatMessage(chatId, TgTextOutput(md), message.id)
     }
 }

@@ -5,12 +5,12 @@ import com.tgbt.bot.MessageContext
 import com.tgbt.settings.Setting
 import com.tgbt.telegram.output.TgTextOutput
 
-class VkIdCommand : BotCommand {
+object VkIdCommand : BotCommand {
     override val command = "/vkid "
 
     override suspend fun MessageContext.handle() = with(bot) {
-        when (val value = message.removePrefix(command)) {
-            "" -> tgMessageSender.sendChatMessage(chatId, TgTextOutput("Argument expected"), messageId)
+        when (val value = messageText.removePrefix(command)) {
+            "" -> tgMessageSender.sendChatMessage(chatId, TgTextOutput("Argument expected"), message.id)
             else -> {
                 val markdownText = if (value.toLongOrNull() != null) {
                     settings[Setting.VK_COMMUNITY_ID] = value
@@ -18,7 +18,7 @@ class VkIdCommand : BotCommand {
                 } else {
                     "Integer value expected, got '$value'"
                 }
-                tgMessageSender.sendChatMessage(chatId, TgTextOutput(markdownText), messageId)
+                tgMessageSender.sendChatMessage(chatId, TgTextOutput(markdownText), message.id)
             }
         }
     }

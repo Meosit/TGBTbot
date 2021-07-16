@@ -5,12 +5,12 @@ import com.tgbt.bot.MessageContext
 import com.tgbt.settings.Setting
 import com.tgbt.telegram.output.TgTextOutput
 
-class PostCountCommand : BotCommand {
+object PostCountCommand : BotCommand {
     override val command = "/count "
 
     override suspend fun MessageContext.handle() = with(bot) {
-        when (val value = message.removePrefix(command)) {
-            "" -> tgMessageSender.sendChatMessage(chatId, TgTextOutput("Argument expected"), messageId)
+        when (val value = messageText.removePrefix(command)) {
+            "" -> tgMessageSender.sendChatMessage(chatId, TgTextOutput("Argument expected"), message.id)
             else -> {
                 val markdownText = if (value.toIntOrNull() != null) {
                     if (value.toInt() in 1..1000) {
@@ -22,7 +22,7 @@ class PostCountCommand : BotCommand {
                 } else {
                     "Integer value expected, got '$value'"
                 }
-                tgMessageSender.sendChatMessage(chatId, TgTextOutput(markdownText), messageId)
+                tgMessageSender.sendChatMessage(chatId, TgTextOutput(markdownText), message.id)
             }
         }
     }
