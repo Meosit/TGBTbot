@@ -7,6 +7,7 @@ import com.tgbt.telegram.output.TgTextOutput
 
 object OwnerHelpCommand: BotCommand {
     override val command: String = "/help"
-    override suspend fun MessageContext.handle() = bot.tgMessageSender
-        .sendChatMessage(chatId, TgTextOutput(loadResourceAsString("help.owner.md")))
+    override suspend fun MessageContext.handle() {
+        bot.tgMessageSender.sendChatMessage(chatId, TgTextOutput(loadResourceAsString("help.owner.md")))
+    }
 }

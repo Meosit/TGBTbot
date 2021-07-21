@@ -9,7 +9,7 @@ import com.tgbt.telegram.output.TgTextOutput
 object ChannelCommand: BotCommand {
     override val command = "/channel "
 
-    override suspend fun MessageContext.handle() = with(bot) {
+    override suspend fun MessageContext.handle(): Unit = with(bot) {
         when (val value = messageText.removePrefix(command)) {
             "" -> tgMessageSender.sendChatMessage(chatId, TgTextOutput("Argument expected"), message.id)
             else -> {

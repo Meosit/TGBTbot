@@ -7,5 +7,5 @@ data class CallbackQuery(
     val id: String,
     val from: User,
     val message: Message? = null,
-    val data: String
+    val data: String? = null
 )

@@ -14,3 +14,6 @@ data class UserSuggestion(
     val imageId: String? = null,
     val insertedTime: Timestamp = Timestamp.from(Instant.now())
 )
+
+fun UserSuggestion.authorReference(anonymous: Boolean) =
+    "предложено${if (anonymous) "" else " $authorName"} через @tgbtbot"

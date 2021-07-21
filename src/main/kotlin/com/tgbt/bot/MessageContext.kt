@@ -52,7 +52,7 @@ data class MessageContext(
             }
         }
         bot.settings[EDITOR_CHAT_ID] == chatId && replyMessage != null -> {
-
+            logger.warn("Editor branch for ${message.verboseUserName}")
         }
         else -> logger.warn("Unreachable update branch for ${message.verboseUserName}")
     }

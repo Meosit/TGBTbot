@@ -44,6 +44,10 @@ class SuggestionStore {
         session.first(sqlQuery(SELECT_LAST_BY_CHAT_ID, chatId)) { row -> row.toUserSuggestion() }
     }
 
+    fun findByStatus(status: SuggestionStatus): List<UserSuggestion> = usingDefault { session ->
+        session.list(sqlQuery(SELECT_BY_STATUS, status.toString())) { row -> row.toUserSuggestion() }
+    }
+
     fun update(suggestion: UserSuggestion, byAuthor: Boolean) = usingDefault { session ->
         val statement = UPDATE_BY_CHAT_AND_MESSAGE_ID.replace("<user>", if (byAuthor) "author" else "editor")
         val query = sqlQuery(
@@ -107,6 +111,9 @@ class SuggestionStore {
 
         private const val SELECT_BY_CHAT_AND_MESSAGE_ID =
             """SELECT * FROM user_suggestions WHERE <user>_chat_id = ? AND <user>_message_id = ?"""
+
+        private const val SELECT_BY_STATUS =
+            """SELECT * FROM user_suggestions WHERE status = ? ORDER BY inserted_time"""
 
         private const val DELETE_BY_CHAT_AND_MESSAGE_ID =
             """DELETE FROM user_suggestions WHERE <user>_chat_id = ? AND <user>_message_id = ?"""

@@ -20,7 +20,7 @@ import java.time.temporal.ChronoUnit
 
 class UpdatePostCommand(private val suggestion: UserSuggestion) : PostCommand() {
 
-    override suspend fun MessageContext.handle() = with(bot) {
+    override suspend fun MessageContext.handle(): Unit = with(bot) {
         val diffMinutes = ChronoUnit.MINUTES.between(suggestion.insertedTime.toInstant(), Instant.now())
         val editTimeMinutes = settings[Setting.USER_EDIT_TIME_MINUTES].toLong()
         val suggestionDelayMinutes = settings[Setting.USER_SUGGESTION_DELAY_MINUTES].toLong()

@@ -8,8 +8,8 @@ import com.tgbt.telegram.output.TgTextOutput
 object ForceForwardCommand : BotCommand {
     override val command = "/forceforward"
 
-    override suspend fun MessageContext.handle() = with(bot) {
-        forwardVkPosts(bot, forcedByOwner = true)
+    override suspend fun MessageContext.handle(): Unit = with(bot) {
+        forwardVkPosts(forcedByOwner = true)
         ownerIds.forEach { tgMessageSender.sendChatMessage(it, TgTextOutput("Forward check finished")) }
     }
 

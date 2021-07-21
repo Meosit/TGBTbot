@@ -2,6 +2,7 @@ package com.tgbt
 
 import com.tgbt.bot.BotContext
 import com.tgbt.bot.MessageContext
+import com.tgbt.bot.editor.EditorAction
 import com.tgbt.grammar.*
 import com.tgbt.misc.escapeMarkdown
 import com.tgbt.misc.trimToLength
@@ -11,10 +12,10 @@ import com.tgbt.post.toPost
 import com.tgbt.settings.Setting.*
 import com.tgbt.settings.SettingStore
 import com.tgbt.settings.Settings
+import com.tgbt.suggestion.SuggestionStatus
 import com.tgbt.suggestion.SuggestionStore
-import com.tgbt.telegram.TelegraphPostCreator
-import com.tgbt.telegram.TgMessageSender
-import com.tgbt.telegram.Update
+import com.tgbt.suggestion.authorReference
+import com.tgbt.telegram.*
 import com.tgbt.telegram.output.TgImageOutput
 import com.tgbt.telegram.output.TgTextOutput
 import com.tgbt.vk.VkPost
@@ -90,11 +91,13 @@ fun Application.main() {
                 val update = call.receive<Update>()
                 val msg = update.message ?: update.editedMessage
                 logger.info("Received $update")
-                if (msg != null) {
-                    val msgContext = MessageContext(botContext, msg, isEdit = update.editedMessage != null)
-                    msgContext.handleUpdate()
-                } else {
-                    logger.info("No message, do nothing with this update")
+                when {
+                    msg != null -> {
+                        val msgContext = MessageContext(botContext, msg, isEdit = update.editedMessage != null)
+                        msgContext.handleUpdate()
+                    }
+                    update.callbackQuery != null -> EditorAction.handleActionCallback(botContext, update.callbackQuery)
+                    else -> logger.info("Nothing useful, do nothing with this update")
                 }
             } catch (e: Exception) {
                 logger.error("Received exception while handling update: ${e.message}")
@@ -116,14 +119,35 @@ fun Application.main() {
     launch {
         do {
             try {
-                forwardVkPosts(botContext)
+                botContext.forwardVkPosts()
                 val delayMinutes = settings[CHECK_PERIOD_MINUTES].toLong()
-                logger.info("Next check after $delayMinutes minutes")
+                logger.info("Next post forward check after $delayMinutes minutes")
                 val delayMillis = TimeUnit.MINUTES.toMillis(delayMinutes)
                 selfPing(httpClient, appUrl)
                 delay(delayMillis)
             } catch (e: Exception) {
                 val message = "Unexpected error occurred while reposting, next try in 60 seconds, error message:\n`${e.message?.escapeMarkdown()}`"
+                logger.error(message, e)
+                (e as? ClientRequestException)?.response?.content?.let {
+                    logger.error(it.readUTF8Line())
+                }
+                val output = TgTextOutput(message)
+                ownerIds.forEach { tgMessageSender.sendChatMessage(it, output) }
+                delay(60000)
+            }
+        } while (true)
+    }
+    launch {
+        do {
+            try {
+                botContext.forwardSuggestions()
+                val delayMinutes = settings[SUGGESTION_POLLING_DELAY_MINUTES].toLong()
+                logger.info("Next suggestion polling after $delayMinutes minutes")
+                val delayMillis = TimeUnit.MINUTES.toMillis(delayMinutes)
+                selfPing(httpClient, appUrl)
+                delay(delayMillis)
+            } catch (e: Exception) {
+                val message = "Unexpected error occurred while suggestions pooling, next try in 60 seconds, error message:\n`${e.message?.escapeMarkdown()}`"
                 logger.error(message, e)
                 (e as? ClientRequestException)?.response?.content?.let {
                     logger.error(it.readUTF8Line())
@@ -142,20 +166,16 @@ private suspend fun selfPing(httpClient: HttpClient, appUrl: String) {
     logger.info("Finished self-ping with response: '$response'")
 }
 
-suspend fun forwardVkPosts(
-    bot: BotContext,
-    forcedByOwner: Boolean = false
-) = with (bot) {
+suspend fun BotContext.forwardVkPosts(forcedByOwner: Boolean = false) {
     val enabled = settings[FORWARDING_ENABLED].toBoolean()
     if (enabled) {
         logger.info("Checking for new posts")
         val postsCount = settings[POST_COUNT_TO_LOAD].toInt()
         val condition = json.parse(Expr.serializer(), settings[CONDITION_EXPR])
         val communityId = settings[VK_COMMUNITY_ID].toLong()
-        val targetChannel = settings[TARGET_CHANNEL]
-        val usePhotoMode = settings[USE_PHOTO_MODE].toBoolean()
         val footerMd = settings[FOOTER_MD]
         val sendStatus = settings[SEND_STATUS].toBoolean()
+        val targetChannel = settings[TARGET_CHANNEL]
 
         val stats = mutableMapOf<String, Int>()
         val postsToForward = try {
@@ -202,38 +222,7 @@ suspend fun forwardVkPosts(
                             )
                         }'"
                     )
-                    when {
-                        usePhotoMode && prepared.canBeSendAsImageWithCaption -> tgMessageSender
-                            .sendChatPhoto(
-                                targetChannel,
-                                TgImageOutput(prepared.withoutImage, prepared.imageUrl())
-                            )
-                        prepared.withImage.length > 4096 -> {
-                            val (ok, error, result) = telegraphPostCreator.createPost(prepared)
-                            when {
-                                ok && result != null -> {
-                                    val output = TgTextOutput("Слишком длиннобугурт, поэтому читайте в телеграфе: [${result.title}](${result.url})" + if (footerMd.isBlank()) "" else "\n\n$footerMd")
-                                    tgMessageSender.sendChatMessage(targetChannel, output, disableLinkPreview = false)
-                                }
-                                else -> {
-                                    val message = "Failed to create Telegraph post, please check logs, error message:\n`${error}`"
-                                    logger.error(message)
-                                    val output = TgTextOutput(message)
-                                    ownerIds.forEach { id -> tgMessageSender.sendChatMessage(id, output) }
-                                }
-                            }
-                        }
-                        else -> {
-                            // footer links should not be previewed.
-                            val disableLinkPreview = footerMd.contains("https://")
-                                    && !prepared.text.contains("https://")
-                            tgMessageSender.sendChatMessage(
-                                targetChannel,
-                                TgTextOutput(prepared.withImage),
-                                disableLinkPreview = disableLinkPreview
-                            )
-                        }
-                    }
+                    sendTelegramPost(targetChannel, prepared)
                     forwarded++
                 }
             }
@@ -271,6 +260,102 @@ suspend fun forwardVkPosts(
 }
 
 
+suspend fun BotContext.forwardSuggestions() {
+    val targetChat = settings[EDITOR_CHAT_ID]
+    val suggestionsEnabled = settings[SUGGESTIONS_ENABLED].toBoolean()
+    val footerMd = settings[FOOTER_MD]
+    if (suggestionsEnabled) {
+        logger.info("Checking for posts which are ready for suggestion")
+        try {
+            val suggestions = suggestionStore.findByStatus(SuggestionStatus.PENDING_USER_EDIT)
+            for (suggestion in suggestions) {
+                suggestionStore.update(suggestion.copy(status = SuggestionStatus.READY_FOR_SUGGESTION), byAuthor = true)
+            }
+        } catch (e: Exception) {
+            val clientError = (e as? ClientRequestException)?.response?.content?.readUTF8Line()
+            val message =
+                "Failed to change suggestions status, please check logs, error message:\n`${clientError ?: e.message}`"
+            logger.error(message, e)
+            val output = TgTextOutput(message)
+            ownerIds.forEach { tgMessageSender.sendChatMessage(it, output) }
+        }
+        logger.info("Checking for new suggested posts")
+        try {
+            val suggestions = suggestionStore.findByStatus(SuggestionStatus.READY_FOR_SUGGESTION)
+            for (suggestion in suggestions) {
+                val post = TgPreparedPost(
+                    suggestion.postText, suggestion.imageId, footerMarkdown = footerMd,
+                    suggestionReference = suggestion.authorReference(false)
+                )
+                val editorMessage = sendTelegramPost(targetChat, post, EditorAction.ACTION_KEYBOARD)
+                if (editorMessage != null) {
+                    suggestionStore.update(
+                        suggestion.copy(
+                            editorChatId = editorMessage.chat.id,
+                            editorMessageId = editorMessage.id,
+                            status = SuggestionStatus.PENDING_EDITOR_REVIEW
+                        ),
+                        byAuthor = true
+                    )
+                }
+            }
+            if (suggestions.size >= 0) {
+                val message = "Right now forwarded ${suggestions.size} suggestions from users"
+                logger.info(message)
+                ownerIds.forEach { tgMessageSender.sendChatMessage(it, TgTextOutput(message)) }
+            }
+        } catch (e: Exception) {
+            val clientError = (e as? ClientRequestException)?.response?.content?.readUTF8Line()
+            val message =
+                "Failed to send user suggestions to editors group, please check logs, error message:\n`${clientError ?: e.message}`"
+            logger.error(message, e)
+            val output = TgTextOutput(message)
+            ownerIds.forEach { tgMessageSender.sendChatMessage(it, output) }
+        }
+    } else {
+        logger.info("Suggestions disabled, skipping...")
+    }
+}
+
+suspend fun BotContext.sendTelegramPost(targetChat: String, prepared: TgPreparedPost, keyboardMarkup: InlineKeyboardMarkup? = null): Message? {
+    val usePhotoMode = settings[USE_PHOTO_MODE].toBoolean()
+    val keyboardJson = keyboardMarkup?.let { json.stringify(InlineKeyboardMarkup.serializer(), keyboardMarkup) }
+    return when {
+        usePhotoMode && prepared.canBeSendAsImageWithCaption -> tgMessageSender
+            .sendChatPhoto(
+                targetChat,
+                TgImageOutput(prepared.withoutImage, prepared.imageUrl(), keyboardJson)
+            ).result
+        prepared.withImage.length > 4096 -> {
+            val (ok, error, result) = telegraphPostCreator.createPost(prepared)
+            when {
+                ok && result != null -> {
+                    val output = TgTextOutput("Слишком длиннобугурт, поэтому читайте в телеграфе: [${result.title}](${result.url})${prepared.formattedFooter}", keyboardJson)
+                    tgMessageSender.sendChatMessage(targetChat, output, disableLinkPreview = false).result
+                }
+                else -> {
+                    val message = "Failed to create Telegraph post, please check logs, error message:\n`${error}`"
+                    logger.error(message)
+                    val output = TgTextOutput(message)
+                    ownerIds.forEach { id -> tgMessageSender.sendChatMessage(id, output) }
+                    null
+                }
+            }
+        }
+        else -> {
+            // footer links should not be previewed.
+            val disableLinkPreview = prepared.footerMarkdown.contains("https://")
+                    && !prepared.text.contains("https://")
+            tgMessageSender.sendChatMessage(
+                targetChat,
+                TgTextOutput(prepared.withImage, keyboardJson),
+                disableLinkPreview = disableLinkPreview
+            ).result
+        }
+    }
+}
+
+
 private fun initializeDataSource(dbUrl: String) {
     val dbUri = URI(dbUrl)
     val (username: String, password: String) = dbUri.userInfo.split(":")
@@ -300,7 +385,7 @@ private fun insertDefaultSettings(settings: Settings, json: Json) = with(setting
         )
     )
     putIfAbsent(SUGGESTIONS_ENABLED, "true")
-    putIfAbsent(EDITOR_CHAT_ID, "-594088198")
+    putIfAbsent(EDITOR_CHAT_ID, "-1001519413163")
     putIfAbsent(USER_EDIT_TIME_MINUTES, "10")
     putIfAbsent(USER_SUGGESTION_DELAY_MINUTES, "30")
     putIfAbsent(SUGGESTION_POLLING_DELAY_MINUTES, "10")

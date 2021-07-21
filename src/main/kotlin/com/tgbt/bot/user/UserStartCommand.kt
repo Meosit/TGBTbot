@@ -8,6 +8,8 @@ import com.tgbt.telegram.output.TgTextOutput
 object UserStartCommand: BotCommand {
     override val command: String = "/start"
 
-    override suspend fun MessageContext.handle() = bot.tgMessageSender
-        .sendChatMessage(chatId, TgTextOutput(startMessage))
+    override suspend fun MessageContext.handle() {
+        bot.tgMessageSender
+            .sendChatMessage(chatId, TgTextOutput(startMessage))
+    }
 }

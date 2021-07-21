@@ -14,10 +14,10 @@ object AddPostCommand: PostCommand() {
     private val successMessage = loadResourceAsString("user/post.suggested.md")
 
     override suspend fun MessageContext.handle() {
-        when {
-            messageText.length in 0..9 -> bot.tgMessageSender
+        when (messageText.length) {
+            in 0..9 -> bot.tgMessageSender
                 .sendChatMessage(chatId, TgTextOutput(emptyErrorMessage))
-            messageText.length in 3501..Int.MAX_VALUE ->
+            in 3501..Int.MAX_VALUE ->
                 bot.tgMessageSender.sendChatMessage(chatId, TgTextOutput(sizeErrorMessage))
             else -> {
                 val suggestion = UserSuggestion(
