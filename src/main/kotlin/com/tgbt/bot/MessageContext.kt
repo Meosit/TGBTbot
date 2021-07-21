@@ -2,6 +2,7 @@ package com.tgbt.bot
 
 import com.tgbt.bot.owner.*
 import com.tgbt.bot.user.*
+import com.tgbt.misc.escapeMarkdown
 import com.tgbt.settings.Setting.EDITOR_CHAT_ID
 import com.tgbt.settings.Setting.SUGGESTIONS_ENABLED
 import com.tgbt.telegram.Message
@@ -9,6 +10,8 @@ import com.tgbt.telegram.anyText
 import com.tgbt.telegram.isPrivate
 import com.tgbt.telegram.output.TgTextOutput
 import com.tgbt.telegram.verboseUserName
+import io.ktor.client.features.*
+import io.ktor.utils.io.*
 import org.slf4j.LoggerFactory
 
 data class MessageContext(
@@ -33,7 +36,23 @@ data class MessageContext(
                 message.replyToMessage
             )
 
-    suspend fun handleUpdate() = when {
+    suspend fun handleUpdate() {
+        try {
+            handleUpdateInternal()
+        } catch (e: Exception) {
+            val line = (e as? ClientRequestException)?.response?.content?.readUTF8Line()
+            val message = "Unexpected error occurred while handling update, error message:\n`${e.message?.escapeMarkdown()}`" +
+                    (line?.let { "\n\nResponse content:\n`${line.escapeMarkdown()}`" } ?: "")
+            logger.error(message, e)
+            if (line != null) {
+                logger.error(line)
+            }
+            val output = TgTextOutput(message)
+            bot.ownerIds.forEach { bot.tgMessageSender.sendChatMessage(it, output) }
+        }
+    }
+
+    suspend fun handleUpdateInternal() = when {
         chatId in bot.ownerIds -> {
             val command = OWNER_COMMANDS.find { it.canHandle(messageText) }
             command?.handleCommand(this) ?: bot.tgMessageSender
@@ -64,8 +83,10 @@ data class MessageContext(
             ChannelCommand,
             CheckPeriodCommand,
             ConditionCommand,
+            EditorsChatCommand,
             FooterCommand,
             ForceForwardCommand,
+            ForcePoolingCommand,
             ForwardingCommand,
             OwnerHelpCommand,
             PhotoModeCommand,
@@ -73,6 +94,13 @@ data class MessageContext(
             RetentionPeriodCommand,
             SendStatusCommand,
             SettingsCommand,
+            SuggestionDelayCommand,
+            SuggestionEditCommand,
+            SuggestionPoolingCommand,
+            SuggestionsCleanCommand,
+            SuggestionsCommand,
+            SuggestionsDeletionCommand,
+            SuggestionsPromotionCommand,
             VkIdCommand
         )
 

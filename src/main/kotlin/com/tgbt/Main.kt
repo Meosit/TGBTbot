@@ -260,7 +260,7 @@ suspend fun BotContext.forwardVkPosts(forcedByOwner: Boolean = false) {
 }
 
 
-suspend fun BotContext.forwardSuggestions() {
+suspend fun BotContext.forwardSuggestions(forcedByOwner: Boolean = false) {
     val targetChat = settings[EDITOR_CHAT_ID]
     val suggestionsEnabled = settings[SUGGESTIONS_ENABLED].toBoolean()
     val footerMd = settings[FOOTER_MD]
@@ -299,7 +299,7 @@ suspend fun BotContext.forwardSuggestions() {
                     )
                 }
             }
-            if (suggestions.size >= 0) {
+            if (forcedByOwner || suggestions.size >= 0) {
                 val message = "Right now forwarded ${suggestions.size} suggestions from users"
                 logger.info(message)
                 ownerIds.forEach { tgMessageSender.sendChatMessage(it, TgTextOutput(message)) }

@@ -29,6 +29,10 @@ class SuggestionStore {
         )
     }
 
+    fun removeAll(): Int = usingDefault { session ->
+        session.update(sqlQuery(DELETE_ALL))
+    }
+
     fun removeByChatAndMessageId(chatId: Long, messageId: Long, byAuthor: Boolean): Boolean = usingDefault { session ->
         val statement = DELETE_BY_CHAT_AND_MESSAGE_ID.replace("<user>", if (byAuthor) "author" else "editor")
         session.update(sqlQuery(statement, chatId, messageId)) == 1
@@ -102,6 +106,9 @@ class SuggestionStore {
             image_id, 
             inserted_time
         ) VALUES (?,?,?,?,?,?,?,?,?)"""
+
+        private const val DELETE_ALL =
+            """DELETE FROM user_suggestions"""
 
         private const val SELECT_LAST_BY_CHAT_ID = """
             SELECT * FROM user_suggestions 
