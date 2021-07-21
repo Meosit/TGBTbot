@@ -2,6 +2,8 @@ package com.tgbt.misc
 
 import com.tgbt.bot.BotContext
 import java.io.InputStreamReader
+import java.net.URI
+import java.net.URISyntaxException
 
 /**
  * Returns a string trimmed to the specified [length] with optional [tail] string added at the end of the trimmed string.
@@ -24,6 +26,18 @@ fun String.escapeMarkdown() = replace("*", "\\*")
  */
 infix fun String?.lettersDiffer(string: String?): Boolean =
     this?.filter(Char::isLetterOrDigit) != string?.filter(Char::isLetterOrDigit)
+
+
+fun String.isImageUrl(): Boolean {
+    try {
+        val uri = URI(this)
+        return uri.path.endsWith(".jpg", ignoreCase = true)
+                || uri.path.endsWith(".jpeg", ignoreCase = true)
+                || uri.path.endsWith(".png", ignoreCase = true)
+    } catch (e: URISyntaxException) {
+        return false
+    }
+}
 
 
 fun loadResourceAsString(resourceBaseName: String): String = BotContext::class.java.classLoader

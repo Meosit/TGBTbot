@@ -1,5 +1,7 @@
 package com.tgbt.bot
 
+import com.tgbt.bot.editor.EditorHelpCommand
+import com.tgbt.bot.editor.EditorUpdatePostCommand
 import com.tgbt.bot.owner.*
 import com.tgbt.bot.user.*
 import com.tgbt.misc.escapeMarkdown
@@ -9,7 +11,6 @@ import com.tgbt.telegram.Message
 import com.tgbt.telegram.anyText
 import com.tgbt.telegram.isPrivate
 import com.tgbt.telegram.output.TgTextOutput
-import com.tgbt.telegram.verboseUserName
 import io.ktor.client.features.*
 import io.ktor.utils.io.*
 import org.slf4j.LoggerFactory
@@ -42,7 +43,7 @@ data class MessageContext(
         } catch (e: Exception) {
             val line = (e as? ClientRequestException)?.response?.content?.readUTF8Line()
             val message = "Unexpected error occurred while handling update, error message:\n`${e.message?.escapeMarkdown()}`" +
-                    (line?.let { "\n\nResponse content:\n`${line.escapeMarkdown()}`" } ?: "")
+                        (line?.let { "\n\nResponse content:\n```${line.escapeMarkdown()}```" } ?: "")
             logger.error(message, e)
             if (line != null) {
                 logger.error(line)
@@ -52,14 +53,15 @@ data class MessageContext(
         }
     }
 
-    suspend fun handleUpdateInternal() = when {
+    private suspend fun handleUpdateInternal() = when {
         chatId in bot.ownerIds -> {
             val command = OWNER_COMMANDS.find { it.canHandle(messageText) }
             command?.handleCommand(this) ?: bot.tgMessageSender
                 .sendChatMessage(chatId, TgTextOutput("Unknown owner command"))
         }
         message.chat.isPrivate -> {
-            if (bot.settings[SUGGESTIONS_ENABLED].toBoolean()) {
+            val command = USER_COMMANDS.find { it.canHandle(messageText) }
+            command?.handleCommand(this) ?: if (bot.settings[SUGGESTIONS_ENABLED].toBoolean()) {
                 val suggestion = bot.suggestionStore.findLastByAuthorChatId(message.chat.id)
                 if (suggestion == null) {
                     AddPostCommand.handleCommand(this)
@@ -70,10 +72,22 @@ data class MessageContext(
                 bot.tgMessageSender.sendChatMessage(chatId, TgTextOutput(UserMessages.suggestionsDisabledErrorMessage))
             }
         }
-        bot.settings[EDITOR_CHAT_ID] == chatId && replyMessage != null -> {
-            logger.warn("Editor branch for ${message.verboseUserName}")
+        bot.settings[EDITOR_CHAT_ID] == chatId -> {
+            val command = EDITOR_COMMANDS.find { it.canHandle(messageText) }
+            when {
+                command != null -> command.handleCommand(this)
+                replyMessage?.from?.isBot == true -> {
+                    val suggestion = bot.suggestionStore.findByChatAndMessageId(message.chat.id, replyMessage.id, byAuthor = false)
+                    if (suggestion != null) {
+                        EditorUpdatePostCommand(suggestion).handleCommand(this)
+                    } else {
+                        bot.tgMessageSender.sendChatMessage(chatId, TgTextOutput("Пост не найден в базе"))
+                    }
+                }
+                else -> logger.info("Ignored editors chat message")
+            }
         }
-        else -> logger.warn("Unreachable update branch for ${message.verboseUserName}")
+        else -> bot.ownerIds.forEach { bot.tgMessageSender.sendChatMessage(it, TgTextOutput("Bot added in non-editors chat! Message dump:\n```$message```")) }
     }
 
     companion object {
@@ -107,6 +121,10 @@ data class MessageContext(
         private val USER_COMMANDS: List<BotCommand> = listOf(
             UserHelpCommand,
             UserStartCommand
+        )
+
+        private val EDITOR_COMMANDS: List<BotCommand> = listOf(
+            EditorHelpCommand
         )
     }
 }

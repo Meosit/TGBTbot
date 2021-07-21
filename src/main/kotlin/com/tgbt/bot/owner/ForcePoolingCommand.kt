@@ -9,7 +9,7 @@ object ForcePoolingCommand : BotCommand {
     override val command = "/forcepoolsuggestions"
 
     override suspend fun MessageContext.handle(): Unit = with(bot) {
-        forwardSuggestions()
+        forwardSuggestions(forcedByOwner = true)
         ownerIds.forEach { tgMessageSender.sendChatMessage(it, TgTextOutput("Suggestions pooling finished")) }
     }
 

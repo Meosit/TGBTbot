@@ -5,10 +5,20 @@ import com.tgbt.bot.MessageContext
 import com.tgbt.telegram.output.TgTextOutput
 
 object SuggestionsCleanCommand: BotCommand {
-    override val command = "/cleansuggestions"
+    override val command = "/cleanoldsuggestions "
 
     override suspend fun MessageContext.handle(): Unit = with(bot) {
-        val count = suggestionStore.removeAll()
-        ownerIds.forEach { tgMessageSender.sendChatMessage(it, TgTextOutput("Removed all $count suggestions")) }
+        when (val value = messageText.removePrefix(command)) {
+            "" -> tgMessageSender.sendChatMessage(chatId, TgTextOutput("Argument expected"), message.id)
+            else -> {
+                val markdownText = if (value.toIntOrNull() != null) {
+                    val removed = suggestionStore.removeAllOlderThan(value.toInt())
+                    "Removed $removed posts older than $value days"
+                } else {
+                    "Integer value expected, got '$value'"
+                }
+                tgMessageSender.sendChatMessage(chatId, TgTextOutput(markdownText), message.id)
+            }
+        }
     }
 }

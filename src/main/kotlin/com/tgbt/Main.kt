@@ -2,7 +2,7 @@ package com.tgbt
 
 import com.tgbt.bot.BotContext
 import com.tgbt.bot.MessageContext
-import com.tgbt.bot.editor.EditorAction
+import com.tgbt.bot.editor.EditorButtonAction
 import com.tgbt.grammar.*
 import com.tgbt.misc.escapeMarkdown
 import com.tgbt.misc.trimToLength
@@ -56,7 +56,8 @@ fun Application.main() {
     val vkServiceToken: String = System.getenv("VK_SERVICE_TOKEN")
     val tgBotToken: String = System.getenv("TG_BOT_TOKEN")
     val telegraphApiToken: String = System.getenv("TELEGRAPH_TOKEN")
-    val ownerIds: List<String> = (System.getenv("OWNER_IDS") ?: "").split(',')
+    val ownerIds: List<String> = if (System.getenv("OWNER_IDS").isNullOrBlank()) emptyList() else
+        System.getenv("OWNER_IDS").split(',')
 
     val json = Json(JsonConfiguration.Stable.copy(ignoreUnknownKeys = true, isLenient = true), context = exprModule)
 
@@ -96,7 +97,7 @@ fun Application.main() {
                         val msgContext = MessageContext(botContext, msg, isEdit = update.editedMessage != null)
                         msgContext.handleUpdate()
                     }
-                    update.callbackQuery != null -> EditorAction.handleActionCallback(botContext, update.callbackQuery)
+                    update.callbackQuery != null -> EditorButtonAction.handleActionCallback(botContext, update.callbackQuery)
                     else -> logger.info("Nothing useful, do nothing with this update")
                 }
             } catch (e: Exception) {
@@ -287,7 +288,7 @@ suspend fun BotContext.forwardSuggestions(forcedByOwner: Boolean = false) {
                     suggestion.postText, suggestion.imageId, footerMarkdown = footerMd,
                     suggestionReference = suggestion.authorReference(false)
                 )
-                val editorMessage = sendTelegramPost(targetChat, post, EditorAction.ACTION_KEYBOARD)
+                val editorMessage = sendTelegramPost(targetChat, post, EditorButtonAction.ACTION_KEYBOARD)
                 if (editorMessage != null) {
                     suggestionStore.update(
                         suggestion.copy(
@@ -299,7 +300,7 @@ suspend fun BotContext.forwardSuggestions(forcedByOwner: Boolean = false) {
                     )
                 }
             }
-            if (forcedByOwner || suggestions.size >= 0) {
+            if (forcedByOwner || suggestions.isNotEmpty()) {
                 val message = "Right now forwarded ${suggestions.size} suggestions from users"
                 logger.info(message)
                 ownerIds.forEach { tgMessageSender.sendChatMessage(it, TgTextOutput(message)) }

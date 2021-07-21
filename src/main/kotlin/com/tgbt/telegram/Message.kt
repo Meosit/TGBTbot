@@ -12,7 +12,8 @@ data class Message(
     val chat: Chat,
     @SerialName("reply_to_message") val replyToMessage: Message? = null,
     val photo: List<PhotoSize>? = null,
-    val caption: String? = null
+    val caption: String? = null,
+    @SerialName("reply_markup") val replyMarkup: InlineKeyboardMarkup? = null
 )
 
 

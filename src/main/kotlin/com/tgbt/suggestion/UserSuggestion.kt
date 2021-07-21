@@ -9,6 +9,7 @@ data class UserSuggestion(
     val authorName: String,
     val editorMessageId: Long? = null,
     val editorChatId: Long? = null,
+    val editorComment: String = "",
     val status: SuggestionStatus = SuggestionStatus.PENDING_USER_EDIT,
     val postText: String,
     val imageId: String? = null,

@@ -14,7 +14,7 @@ import com.tgbt.telegram.InlineKeyboardMarkup
 import com.tgbt.telegram.Message
 import com.tgbt.telegram.output.TgTextOutput
 
-object EditorAction {
+object EditorButtonAction {
     private const val DELETE_ACTION_DATA = "del"
     private const val CONFIRM_DELETE_ACTION_DATA = "del_confirm"
     private const val POST_ANONYMOUSLY_DATA = "anon"
@@ -51,11 +51,11 @@ object EditorAction {
         }
         when(callback.data) {
             DELETE_ACTION_DATA -> bot.sendConfirmDialog(message, callback,
-                InlineKeyboardButton("❌ Удалить", CONFIRM_DELETE_ACTION_DATA))
+                InlineKeyboardButton("❌ Точно удалить?", CONFIRM_DELETE_ACTION_DATA))
             POST_ANONYMOUSLY_DATA -> bot.sendConfirmDialog(message, callback,
-                InlineKeyboardButton("✅ Анонимно", CONFIRM_POST_ANONYMOUSLY_DATA))
+                InlineKeyboardButton("✅ Точно отправить анонимно?", CONFIRM_POST_ANONYMOUSLY_DATA))
             POST_PUBLICLY_DATA -> bot.sendConfirmDialog(message, callback,
-                InlineKeyboardButton("☑️ Не анонимно", CONFIRM_POST_PUBLICLY_DATA))
+                InlineKeyboardButton("☑️ Точно отправить с именем?", CONFIRM_POST_PUBLICLY_DATA))
             CONFIRM_DELETE_ACTION_DATA -> {
                 if (suggestion?.editorChatId != null && suggestion.editorMessageId != null) {
                     bot.suggestionStore.removeByChatAndMessageId(suggestion.editorChatId, suggestion.editorMessageId, byAuthor = false)
@@ -86,7 +86,7 @@ object EditorAction {
             }
             CANCEL_DATA -> {
                 val keyboardJson = bot.json.stringify(InlineKeyboardMarkup.serializer(), ACTION_KEYBOARD)
-                bot.tgMessageSender.editChatKeyboard(message.chat.id.toString(), message.id, keyboardJson)
+                bot.tgMessageSender.editChatMessageKeyboard(message.chat.id.toString(), message.id, keyboardJson)
                 bot.tgMessageSender.pingCallbackQuery(callback.id, "Действие отменено")
             }
             else -> {
@@ -127,11 +127,12 @@ object EditorAction {
         callback: CallbackQuery,
         actionButton: InlineKeyboardButton
     ) {
-        val inlineKeyboardMarkup = InlineKeyboardMarkup(
-            listOf(listOf(actionButton, InlineKeyboardButton("↩️ Вернуться", CANCEL_DATA)))
-        )
+        val inlineKeyboardMarkup = InlineKeyboardMarkup(listOf(
+            listOf(actionButton),
+            listOf(InlineKeyboardButton("↩️ Отмена действия", CANCEL_DATA))
+        ))
         val keyboardJson = json.stringify(InlineKeyboardMarkup.serializer(), inlineKeyboardMarkup)
-        tgMessageSender.editChatKeyboard(message.chat.id.toString(), message.id, keyboardJson)
+        tgMessageSender.editChatMessageKeyboard(message.chat.id.toString(), message.id, keyboardJson)
         tgMessageSender.pingCallbackQuery(callback.id)
     }
 
@@ -142,7 +143,7 @@ object EditorAction {
     ) {
         val inlineKeyboardMarkup = InlineKeyboardMarkup(listOf(listOf(InlineKeyboardButton(buttonLabel, DELETED_DATA))))
         val keyboardJson = json.stringify(InlineKeyboardMarkup.serializer(), inlineKeyboardMarkup)
-        tgMessageSender.editChatKeyboard(message.chat.id.toString(), message.id, keyboardJson)
+        tgMessageSender.editChatMessageKeyboard(message.chat.id.toString(), message.id, keyboardJson)
         tgMessageSender.pingCallbackQuery(callback.id, buttonLabel)
     }
 }

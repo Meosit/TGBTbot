@@ -12,6 +12,7 @@ object UserMessages {
     val postUpdatedMessage = loadResourceAsString("user/post.updated.md")
     val postDeletedMessage = loadResourceAsString("user/post.deleted.md")
     val postPhotoDeletedMessage = loadResourceAsString("user/post.photo.deleted.md")
+    val photoUpdatedAttachmentMessage = loadResourceAsString("user/post.photo.attached.md")
     val photoUpdatedMessage = loadResourceAsString("user/post.photo.updated.md")
 
     val suggestionsDisabledErrorMessage = loadResourceAsString("user/error.disabled.md")

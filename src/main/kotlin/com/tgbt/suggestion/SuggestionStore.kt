@@ -21,6 +21,7 @@ class SuggestionStore {
                 suggestion.authorName,
                 suggestion.editorMessageId,
                 suggestion.editorChatId,
+                suggestion.editorComment,
                 suggestion.status.toString(),
                 suggestion.postText,
                 suggestion.imageId,
@@ -29,8 +30,8 @@ class SuggestionStore {
         )
     }
 
-    fun removeAll(): Int = usingDefault { session ->
-        session.update(sqlQuery(DELETE_ALL))
+    fun removeAllOlderThan(days: Int): Int = usingDefault { session ->
+        session.update(sqlQuery(DELETE_ALL_OLDER_THAN.replace("<days>", days.toString())))
     }
 
     fun removeByChatAndMessageId(chatId: Long, messageId: Long, byAuthor: Boolean): Boolean = usingDefault { session ->
@@ -58,6 +59,7 @@ class SuggestionStore {
             statement,
             suggestion.editorMessageId,
             suggestion.editorChatId,
+            suggestion.editorComment,
             suggestion.status.toString(),
             suggestion.postText,
             suggestion.imageId,
@@ -73,6 +75,7 @@ class SuggestionStore {
         authorName = string("author_name"),
         editorMessageId = longOrNull("editor_message_id"),
         editorChatId = longOrNull("editor_chat_id"),
+        editorComment = stringOrNull("editor_comment") ?: "",
         status = SuggestionStatus.valueOf(string("status")),
         postText = string("post_text"),
         imageId = stringOrNull("image_id"),
@@ -87,6 +90,7 @@ class SuggestionStore {
           author_name TEXT NOT NULL,
           editor_message_id BIGINT NULL,
           editor_chat_id BIGINT NULL,
+          editor_comment TEXT NULL,
           status TEXT NOT NULL,
           post_text TEXT NOT NULL,
           image_id TEXT NULL,
@@ -101,18 +105,19 @@ class SuggestionStore {
             author_name, 
             editor_message_id, 
             editor_chat_id, 
+            editor_comment, 
             status, 
             post_text, 
             image_id, 
             inserted_time
-        ) VALUES (?,?,?,?,?,?,?,?,?)"""
+        ) VALUES (?,?,?,?,?,?,?,?,?,?)"""
 
-        private const val DELETE_ALL =
-            """DELETE FROM user_suggestions"""
+        private const val DELETE_ALL_OLDER_THAN =
+            """DELETE FROM user_suggestions WHERE inserted_time < NOW() - INTERVAL '<days> days'"""
 
         private const val SELECT_LAST_BY_CHAT_ID = """
             SELECT * FROM user_suggestions 
-            WHERE author_chat_id = ? AND status = 'PENDING_USER_EDIT' 
+            WHERE author_chat_id = ? 
             ORDER BY inserted_time DESC LIMIT 1
         """
 
@@ -129,6 +134,7 @@ class SuggestionStore {
         UPDATE user_suggestions SET 
             editor_message_id = ?,
             editor_chat_id = ?,
+            editor_comment = ?,
             status = ?,
             post_text = ?,
             image_id = ?

@@ -1,15 +1,16 @@
-package com.tgbt.bot.owner
+package com.tgbt.bot.editor
 
 import com.tgbt.bot.BotCommand
 import com.tgbt.bot.MessageContext
 import com.tgbt.misc.loadResourceAsString
 import com.tgbt.telegram.output.TgTextOutput
 
-object OwnerHelpCommand: BotCommand {
+object EditorHelpCommand : BotCommand {
     override val command: String = "/help"
-    private val helpMessage = loadResourceAsString("help.owner.md")
+    private val helpMessage = loadResourceAsString("editor/help.md")
 
     override suspend fun MessageContext.handle() {
         bot.tgMessageSender.sendChatMessage(chatId, TgTextOutput(helpMessage))
     }
+
 }

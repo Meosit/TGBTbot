@@ -24,3 +24,4 @@ For user suggestions forwarding:
 /suggestionedit `<minutes>` - time for user to edit his/her suggestion
 /suggestionspromotion `<true|false>` - if true then notify users when the post was approved
 /suggestionsdeletion `<true|false>` - if true then notify users when the post was deleted and discarded
+/cleanoldsuggestions `<days>` - delete suggestion from DB which older than provided amount of days
