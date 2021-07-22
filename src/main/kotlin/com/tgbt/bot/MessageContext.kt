@@ -107,6 +107,7 @@ data class MessageContext(
             PostCountCommand,
             RetentionPeriodCommand,
             SendStatusCommand,
+            SendSuggestionStatusCommand,
             SettingsCommand,
             SuggestionDelayCommand,
             SuggestionEditCommand,

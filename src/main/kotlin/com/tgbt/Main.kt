@@ -303,7 +303,9 @@ suspend fun BotContext.forwardSuggestions(forcedByOwner: Boolean = false) {
             if (forcedByOwner || suggestions.isNotEmpty()) {
                 val message = "Right now forwarded ${suggestions.size} suggestions from users"
                 logger.info(message)
-                ownerIds.forEach { tgMessageSender.sendChatMessage(it, TgTextOutput(message)) }
+                if (settings[SEND_SUGGESTION_STATUS].toBoolean()) {
+                    ownerIds.forEach { tgMessageSender.sendChatMessage(it, TgTextOutput(message)) }
+                }
             }
         } catch (e: Exception) {
             val clientError = (e as? ClientRequestException)?.response?.content?.readUTF8Line()
@@ -392,4 +394,5 @@ private fun insertDefaultSettings(settings: Settings, json: Json) = with(setting
     putIfAbsent(SUGGESTION_POLLING_DELAY_MINUTES, "10")
     putIfAbsent(SEND_PROMOTION_FEEDBACK, "true")
     putIfAbsent(SEND_DELETION_FEEDBACK, "true")
+    putIfAbsent(SEND_SUGGESTION_STATUS, "true")
 }
