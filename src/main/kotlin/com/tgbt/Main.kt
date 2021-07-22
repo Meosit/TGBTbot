@@ -282,26 +282,38 @@ suspend fun BotContext.forwardSuggestions(forcedByOwner: Boolean = false) {
         }
         logger.info("Checking for new suggested posts")
         try {
+            var forwarded = 0
             val suggestions = suggestionStore.findByStatus(SuggestionStatus.READY_FOR_SUGGESTION)
             for (suggestion in suggestions) {
-                val post = TgPreparedPost(
-                    suggestion.postText, suggestion.imageId, footerMarkdown = footerMd,
-                    suggestionReference = suggestion.authorReference(false)
-                )
-                val editorMessage = sendTelegramPost(targetChat, post, EditorButtonAction.ACTION_KEYBOARD)
-                if (editorMessage != null) {
-                    suggestionStore.update(
-                        suggestion.copy(
-                            editorChatId = editorMessage.chat.id,
-                            editorMessageId = editorMessage.id,
-                            status = SuggestionStatus.PENDING_EDITOR_REVIEW
-                        ),
-                        byAuthor = true
+                try {
+
+                    val post = TgPreparedPost(
+                        suggestion.postText, suggestion.imageId, footerMarkdown = footerMd,
+                        suggestionReference = suggestion.authorReference(false)
                     )
+                    val editorMessage = sendTelegramPost(targetChat, post, EditorButtonAction.ACTION_KEYBOARD)
+                    if (editorMessage != null) {
+                        suggestionStore.update(
+                            suggestion.copy(
+                                editorChatId = editorMessage.chat.id,
+                                editorMessageId = editorMessage.id,
+                                status = SuggestionStatus.PENDING_EDITOR_REVIEW
+                            ),
+                            byAuthor = true
+                        )
+                    }
+                    forwarded++
+                } catch (e: Exception) {
+                    val clientError = (e as? ClientRequestException)?.response?.content?.readUTF8Line()
+                    val message =
+                        "Failed to send user suggestion to editors group, please check logs, error message:\n`${clientError ?: e.message}`"
+                    logger.error(message, e)
+                    val output = TgTextOutput(message)
+                    ownerIds.forEach { tgMessageSender.sendChatMessage(it, output) }
                 }
             }
-            if (forcedByOwner || suggestions.isNotEmpty()) {
-                val message = "Right now forwarded ${suggestions.size} suggestions from users"
+            if (forcedByOwner || forwarded > 0) {
+                val message = "Right now forwarded $forwarded suggestions from users"
                 logger.info(message)
                 if (settings[SEND_SUGGESTION_STATUS].toBoolean()) {
                     ownerIds.forEach { tgMessageSender.sendChatMessage(it, TgTextOutput(message)) }
