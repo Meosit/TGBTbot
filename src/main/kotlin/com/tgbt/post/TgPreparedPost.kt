@@ -11,8 +11,8 @@ data class TgPreparedPost(
 ) {
     val formattedFooter by lazy {
         val compiled =
-            (if (editorComment.isBlank()) "" else "\n———\n$editorComment\n") +
-                    (if (suggestionReference.isBlank()) "" else "\n$suggestionReference") +
+            (if (editorComment.isBlank()) "" else "\n———\n${editorComment.escapeMarkdown()}\n") +
+                    (if (suggestionReference.isBlank()) "" else "\n${suggestionReference.escapeMarkdown()}") +
                     (if (footerMarkdown.isBlank()) "" else "\n$footerMarkdown")
         if (compiled.isBlank()) "" else "\n$compiled"
     }

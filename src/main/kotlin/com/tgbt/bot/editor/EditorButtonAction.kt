@@ -8,10 +8,7 @@ import com.tgbt.sendTelegramPost
 import com.tgbt.settings.Setting
 import com.tgbt.suggestion.UserSuggestion
 import com.tgbt.suggestion.authorReference
-import com.tgbt.telegram.CallbackQuery
-import com.tgbt.telegram.InlineKeyboardButton
-import com.tgbt.telegram.InlineKeyboardMarkup
-import com.tgbt.telegram.Message
+import com.tgbt.telegram.*
 import com.tgbt.telegram.output.TgTextOutput
 
 object EditorButtonAction {
@@ -143,6 +140,8 @@ object EditorButtonAction {
     ) {
         val inlineKeyboardMarkup = InlineKeyboardMarkup(listOf(listOf(InlineKeyboardButton(buttonLabel, DELETED_DATA))))
         val keyboardJson = json.stringify(InlineKeyboardMarkup.serializer(), inlineKeyboardMarkup)
+        tgMessageSender.sendChatMessage(message.chat.id.toString(),
+            TgTextOutput("Пост был обработан ${callback.from.verboseUserName}"), replyMessageId = message.id)
         tgMessageSender.editChatMessageKeyboard(message.chat.id.toString(), message.id, keyboardJson)
         tgMessageSender.pingCallbackQuery(callback.id, buttonLabel)
     }
