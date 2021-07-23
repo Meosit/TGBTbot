@@ -13,7 +13,8 @@ data class UserSuggestion(
     val status: SuggestionStatus = SuggestionStatus.PENDING_USER_EDIT,
     val postText: String,
     val imageId: String? = null,
-    val insertedTime: Timestamp = Timestamp.from(Instant.now())
+    val insertedTime: Timestamp = Timestamp.from(Instant.now()),
+    val scheduleTime: Timestamp? = null
 )
 
 fun UserSuggestion.authorReference(anonymous: Boolean) =

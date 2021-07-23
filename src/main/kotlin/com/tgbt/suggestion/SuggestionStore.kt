@@ -3,12 +3,15 @@ package com.tgbt.suggestion
 import com.vladsch.kotlin.jdbc.Row
 import com.vladsch.kotlin.jdbc.sqlQuery
 import com.vladsch.kotlin.jdbc.usingDefault
+import java.sql.Timestamp
+import java.time.Instant
 
 class SuggestionStore {
 
     init {
         usingDefault { session ->
             session.execute(sqlQuery(CREATE_TABLE_SQL))
+            session.execute(sqlQuery(ADD_SCHEDULE_TIME_COLUMN))
         }
     }
 
@@ -25,7 +28,8 @@ class SuggestionStore {
                 suggestion.status.toString(),
                 suggestion.postText,
                 suggestion.imageId,
-                suggestion.insertedTime
+                suggestion.insertedTime,
+                suggestion.scheduleTime
             )
         )
     }
@@ -53,6 +57,10 @@ class SuggestionStore {
         session.list(sqlQuery(SELECT_BY_STATUS, status.toString())) { row -> row.toUserSuggestion() }
     }
 
+    fun findReadyForSchedule(): List<UserSuggestion> = usingDefault { session ->
+        session.list(sqlQuery(SELECT_BY_SCHEDULE_TIME, Timestamp.from(Instant.now()))) { row -> row.toUserSuggestion() }
+    }
+
     fun update(suggestion: UserSuggestion, byAuthor: Boolean) = usingDefault { session ->
         val statement = UPDATE_BY_CHAT_AND_MESSAGE_ID.replace("<user>", if (byAuthor) "author" else "editor")
         val query = sqlQuery(
@@ -63,6 +71,7 @@ class SuggestionStore {
             suggestion.status.toString(),
             suggestion.postText,
             suggestion.imageId,
+            suggestion.scheduleTime,
             if (byAuthor) suggestion.authorChatId else suggestion.editorChatId,
             if (byAuthor) suggestion.authorMessageId else suggestion.editorMessageId
         )
@@ -79,7 +88,8 @@ class SuggestionStore {
         status = SuggestionStatus.valueOf(string("status")),
         postText = string("post_text"),
         imageId = stringOrNull("image_id"),
-        insertedTime = sqlTimestamp("inserted_time")
+        insertedTime = sqlTimestamp("inserted_time"),
+        scheduleTime = sqlTimestampOrNull("schedule_time")
     )
 
     companion object {
@@ -98,6 +108,11 @@ class SuggestionStore {
           PRIMARY KEY (author_message_id, author_chat_id)
         )"""
 
+        private const val ADD_SCHEDULE_TIME_COLUMN = """
+            ALTER TABLE IF EXISTS user_suggestions 
+                ADD COLUMN IF NOT EXISTS schedule_time TIMESTAMP DEFAULT NULL
+        """
+
         private const val INSERT_SQL = """
         INSERT INTO user_suggestions (
             author_message_id, 
@@ -109,8 +124,9 @@ class SuggestionStore {
             status, 
             post_text, 
             image_id, 
-            inserted_time
-        ) VALUES (?,?,?,?,?,?,?,?,?,?)"""
+            inserted_time,
+            schedule_time
+        ) VALUES (?,?,?,?,?,?,?,?,?,?,?)"""
 
         private const val DELETE_ALL_OLDER_THAN =
             """DELETE FROM user_suggestions WHERE inserted_time < NOW() - INTERVAL '<days> days'"""
@@ -119,6 +135,13 @@ class SuggestionStore {
             SELECT * FROM user_suggestions 
             WHERE author_chat_id = ? 
             ORDER BY inserted_time DESC LIMIT 1
+        """
+
+        private const val SELECT_BY_SCHEDULE_TIME = """
+            SELECT * FROM user_suggestions 
+            WHERE schedule_time IS NOT NULL AND schedule_time <= ?
+            AND status IN ('SCHEDULE_ANONYMOUSLY', 'SCHEDULE_PUBLICLY')
+            ORDER BY schedule_time
         """
 
         private const val SELECT_BY_CHAT_AND_MESSAGE_ID =
@@ -137,7 +160,8 @@ class SuggestionStore {
             editor_comment = ?,
             status = ?,
             post_text = ?,
-            image_id = ?
+            image_id = ?,
+            schedule_time = ?
         WHERE <user>_chat_id = ? AND <user>_message_id = ?
         """
     }

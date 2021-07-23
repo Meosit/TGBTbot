@@ -5,7 +5,6 @@ import com.tgbt.bot.MessageContext
 import com.tgbt.bot.user.PostCommand
 import com.tgbt.bot.user.UserMessages
 import com.tgbt.misc.isImageUrl
-import com.tgbt.misc.loadResourceAsString
 import com.tgbt.misc.trimToLength
 import com.tgbt.post.TgPreparedPost
 import com.tgbt.settings.Setting
@@ -29,34 +28,15 @@ class EditorUpdatePostCommand(private val suggestion: UserSuggestion): PostComma
                 suggestionStore.update(updatedSuggestion, byAuthor = false)
                 tgMessageSender.sendChatMessage(chatId, TgTextOutput(noPicMessage), replyMessageId = message.id)
             }
-            messageText.startsWith("/nocomment") -> {
-                updatedSuggestion = suggestion.copy(editorComment = "")
-                suggestionStore.update(updatedSuggestion, byAuthor = false)
-                tgMessageSender.sendChatMessage(chatId, TgTextOutput(noCommentMessage), replyMessageId = message.id)
-            }
             messageText.trim().isImageUrl() -> {
                 updatedSuggestion = suggestion.copy(imageId = messageText.trim())
                 suggestionStore.update(updatedSuggestion, byAuthor = false)
                 tgMessageSender.sendChatMessage(chatId, TgTextOutput(addPicMessage), replyMessageId = message.id)
             }
-            messageText.trim().isNotBlank() -> {
-                val markdown = if (messageText.trim().length <= 140) {
-                    updatedSuggestion = suggestion.copy(editorComment = messageText.trim())
-                    suggestionStore.update(updatedSuggestion, byAuthor = false)
-                    addCommentMessage
-                } else {
-                    invalidCommentMessage
-                }
-                tgMessageSender.sendChatMessage(chatId, TgTextOutput(markdown), replyMessageId = message.id)
-            }
-            else -> {
-                tgMessageSender.sendChatMessage(chatId, TgTextOutput(invalidPayloadMessage), replyMessageId = message.id)
-            }
         }
         if (updatedSuggestion != null) {
             val post = TgPreparedPost(updatedSuggestion.postText, updatedSuggestion.imageId,
-                settings[Setting.FOOTER_MD], suggestion.authorReference(false),
-                updatedSuggestion.editorComment)
+                settings[Setting.FOOTER_MD], suggestion.authorReference(false))
             updateTelegramPost(replyMessage, post)
         }
     }
@@ -94,10 +74,6 @@ class EditorUpdatePostCommand(private val suggestion: UserSuggestion): PostComma
 
     companion object {
         private val noPicMessage = UserMessages.postPhotoDeletedMessage
-        private val noCommentMessage = loadResourceAsString("editor/comment.deleted.md")
-        private val addCommentMessage = loadResourceAsString("editor/comment.updated.md")
-        private val invalidCommentMessage = loadResourceAsString("editor/comment.invalid.md")
-        private val invalidPayloadMessage = loadResourceAsString("editor/invalid.md")
         private val addPicMessage = UserMessages.photoUpdatedMessage
         private val noImagePlaceholder = "https://cdn.segmentnext.com/wp-content/themes/segmentnext/images/no-image-available.jpg"
     }

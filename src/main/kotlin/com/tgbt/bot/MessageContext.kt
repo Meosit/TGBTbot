@@ -80,9 +80,8 @@ data class MessageContext(
                     val suggestion = bot.suggestionStore.findByChatAndMessageId(message.chat.id, replyMessage.id, byAuthor = false)
                     if (suggestion != null) {
                         EditorUpdatePostCommand(suggestion).handleCommand(this)
-                    } else {
-                        bot.tgMessageSender.sendChatMessage(chatId, TgTextOutput("Пост не найден в базе"))
                     }
+                    Unit
                 }
                 else -> logger.info("Ignored editors chat message")
             }

@@ -3,6 +3,7 @@ package com.tgbt
 import com.tgbt.bot.BotContext
 import com.tgbt.bot.MessageContext
 import com.tgbt.bot.editor.EditorButtonAction
+import com.tgbt.bot.user.UserMessages
 import com.tgbt.grammar.*
 import com.tgbt.misc.escapeMarkdown
 import com.tgbt.misc.trimToLength
@@ -44,6 +45,10 @@ import org.slf4j.LoggerFactory
 import java.io.PrintWriter
 import java.io.StringWriter
 import java.net.URI
+import java.time.Duration
+import java.time.Instant
+import java.time.LocalTime
+import java.time.ZoneId
 import java.util.concurrent.TimeUnit
 
 private val logger = LoggerFactory.getLogger("MainKt")
@@ -179,7 +184,7 @@ suspend fun BotContext.forwardVkPosts(forcedByOwner: Boolean = false) {
         val targetChannel = settings[TARGET_CHANNEL]
 
         val stats = mutableMapOf<String, Int>()
-        val postsToForward = try {
+        val postsToForward = doNotThrow("Failed to load or parse VK posts") {
             vkPostLoader
                 .load(postsCount, communityId)
                 .filter { it.isPinned + it.markedAsAds == 0 }
@@ -201,16 +206,9 @@ suspend fun BotContext.forwardVkPosts(forcedByOwner: Boolean = false) {
                 }
                 .take(20)
                 .also { logger.info("Taking only first ${it.size} to avoid request rate errors") }
-        } catch (e: Exception) {
-            val message =
-                "Failed to load or parse VK posts, please check logs, error message:\n`${e.message}`"
-            logger.error(message, e)
-            val output = TgTextOutput(message)
-            ownerIds.forEach { tgMessageSender.sendChatMessage(it, output) }
-            null
         }
 
-        try {
+        doNotThrow("Failed to send posts to TG") {
             var forwarded = 0
             postsToForward?.forEach {
                 val prepared = TgPreparedPost(it.text, it.imageUrl, footerMd)
@@ -228,33 +226,21 @@ suspend fun BotContext.forwardVkPosts(forcedByOwner: Boolean = false) {
                 }
             }
             if (forcedByOwner || (sendStatus && forwarded > 0)) {
-                val message = "Right now forwarded $forwarded posts from VK to Telegram:\n" +
+                val message = "*FORWARDING*\n" +
+                        "Right now forwarded $forwarded posts from VK to Telegram:\n" +
                         "${stats["total"]} loaded in total\n" +
                         "${stats["condition"]} after filtering by condition\n"
                 logger.info(message)
                 ownerIds.forEach { tgMessageSender.sendChatMessage(it, TgTextOutput(message)) }
             }
-        } catch (e: Exception) {
-            val clientError = (e as? ClientRequestException)?.response?.content?.readUTF8Line()
-            val message =
-                "Failed to send posts to TG, please check logs, error message:\n`${clientError ?: e.message}`"
-            logger.error(message, e)
-            val output = TgTextOutput(message)
-            ownerIds.forEach { tgMessageSender.sendChatMessage(it, output) }
         }
 
-        try {
+        doNotThrow("Failed to clean up old posts from TG") {
             val retentionDays = settings[RETENTION_PERIOD_DAYS].toInt()
             logger.info("Deleting posts created more than $retentionDays days ago")
             val deleted = postStore.cleanupOldPosts(retentionDays)
             logger.info("Deleted $deleted posts created more than $retentionDays days ago")
-        } catch (e: Exception) {
-            val message = "Failed to send posts to TG, please check logs, error message:\n`${e.message}`"
-            logger.error(message, e)
-            val output = TgTextOutput(message)
-            ownerIds.forEach { tgMessageSender.sendChatMessage(it, output) }
         }
-
     } else {
         logger.info("Forwarding disabled, skipping...")
     }
@@ -267,69 +253,121 @@ suspend fun BotContext.forwardSuggestions(forcedByOwner: Boolean = false) {
     val footerMd = settings[FOOTER_MD]
     if (suggestionsEnabled) {
         logger.info("Checking for posts which are ready for suggestion")
-        try {
+        doNotThrow("Failed to change suggestions status PENDING_USER_EDIT -> READY_FOR_SUGGESTION") {
             val suggestions = suggestionStore.findByStatus(SuggestionStatus.PENDING_USER_EDIT)
             for (suggestion in suggestions) {
                 suggestionStore.update(suggestion.copy(status = SuggestionStatus.READY_FOR_SUGGESTION), byAuthor = true)
             }
-        } catch (e: Exception) {
-            val clientError = (e as? ClientRequestException)?.response?.content?.readUTF8Line()
-            val message =
-                "Failed to change suggestions status, please check logs, error message:\n`${clientError ?: e.message}`"
-            logger.error(message, e)
-            val output = TgTextOutput(message)
-            ownerIds.forEach { tgMessageSender.sendChatMessage(it, output) }
         }
         logger.info("Checking for new suggested posts")
-        try {
-            var forwarded = 0
-            val suggestions = suggestionStore.findByStatus(SuggestionStatus.READY_FOR_SUGGESTION)
-            for (suggestion in suggestions) {
-                try {
-
-                    val post = TgPreparedPost(
-                        suggestion.postText, suggestion.imageId, footerMarkdown = footerMd,
-                        suggestionReference = suggestion.authorReference(false)
+        var forwarded = 0
+        val suggestions = doNotThrow("Failed to fetch READY_FOR_SUGGESTION suggestions from DB") {
+            suggestionStore.findByStatus(SuggestionStatus.READY_FOR_SUGGESTION)
+        }
+        suggestions?.forEach { suggestion ->
+            doNotThrow("Failed to send single suggestion to editors group") {
+                val post = TgPreparedPost(
+                    suggestion.postText, suggestion.imageId, footerMarkdown = footerMd,
+                    suggestionReference = suggestion.authorReference(false)
+                )
+                val editorMessage = sendTelegramPost(targetChat, post, EditorButtonAction.ACTION_KEYBOARD)
+                if (editorMessage != null) {
+                    suggestionStore.update(
+                        suggestion.copy(
+                            editorChatId = editorMessage.chat.id,
+                            editorMessageId = editorMessage.id,
+                            status = SuggestionStatus.PENDING_EDITOR_REVIEW
+                        ),
+                        byAuthor = true
                     )
-                    val editorMessage = sendTelegramPost(targetChat, post, EditorButtonAction.ACTION_KEYBOARD)
-                    if (editorMessage != null) {
-                        suggestionStore.update(
-                            suggestion.copy(
-                                editorChatId = editorMessage.chat.id,
-                                editorMessageId = editorMessage.id,
-                                status = SuggestionStatus.PENDING_EDITOR_REVIEW
-                            ),
-                            byAuthor = true
-                        )
-                    }
-                    forwarded++
-                } catch (e: Exception) {
-                    val clientError = (e as? ClientRequestException)?.response?.content?.readUTF8Line()
-                    val message =
-                        "Failed to send user suggestion to editors group, please check logs, error message:\n`${clientError ?: e.message}`"
-                    logger.error(message, e)
-                    val output = TgTextOutput(message)
-                    ownerIds.forEach { tgMessageSender.sendChatMessage(it, output) }
                 }
+                forwarded++
             }
-            if (forcedByOwner || forwarded > 0) {
-                val message = "Right now forwarded $forwarded suggestions from users"
-                logger.info(message)
-                if (settings[SEND_SUGGESTION_STATUS].toBoolean()) {
-                    ownerIds.forEach { tgMessageSender.sendChatMessage(it, TgTextOutput(message)) }
-                }
+        }
+        val forgotten = notifyAboutForgottenSuggestions(forcedByOwner)
+        val scheduled = postScheduledSuggestions(footerMd)
+        if (forcedByOwner || forwarded > 0 || forgotten > 0 || scheduled > 0) {
+            val message = "*SUGGESTIONS*\n" +
+                    "\nRight now forwarded $forwarded suggestions from users." +
+                    "\nEditors forgot to review $forgotten posts." +
+                    "\nPosted $forgotten scheduled posts."
+            logger.info(message)
+            if (settings[SEND_SUGGESTION_STATUS].toBoolean()) {
+                ownerIds.forEach { tgMessageSender.sendChatMessage(it, TgTextOutput(message)) }
             }
-        } catch (e: Exception) {
-            val clientError = (e as? ClientRequestException)?.response?.content?.readUTF8Line()
-            val message =
-                "Failed to send user suggestions to editors group, please check logs, error message:\n`${clientError ?: e.message}`"
-            logger.error(message, e)
-            val output = TgTextOutput(message)
-            ownerIds.forEach { tgMessageSender.sendChatMessage(it, output) }
         }
     } else {
         logger.info("Suggestions disabled, skipping...")
     }
+}
+
+private suspend fun BotContext.notifyAboutForgottenSuggestions(forcedByOwner: Boolean = false): Int {
+    val start = LocalTime.of(0, 0, 0, 0)
+    val end = LocalTime.of(0, settings[SUGGESTION_POLLING_DELAY_MINUTES].toInt(), 0, 0)
+    val now = LocalTime.from(Instant.now().atZone(ZoneId.of("Europe/Moscow")))
+    var forgotten = 0
+    if (forcedByOwner || (now.isAfter(start) && now.isBefore(end))) {
+        logger.info("New day, checking for forgotten posts")
+        val forgottenSuggestions = doNotThrow("Failed to fetch PENDING_EDITOR_REVIEW suggestions from DB") {
+            suggestionStore.findByStatus(SuggestionStatus.PENDING_EDITOR_REVIEW)
+        }
+        logger.info("Currently there are ${forgottenSuggestions?.size} forgotten posts, notifying...")
+        forgottenSuggestions?.forEach { suggestion ->
+            doNotThrow("Failed to notify about forgotten post") {
+                val hoursSinceCreated = Duration
+                    .between(Instant.now(), suggestion.insertedTime.toInstant()).abs().toHours()
+                logger.info("Post from ${suggestion.authorName} created $hoursSinceCreated hours ago")
+                if (hoursSinceCreated > 24) {
+                    tgMessageSender.sendChatMessage(
+                        suggestion.editorChatId.toString(),
+                        TgTextOutput("Забытый пост, создан $hoursSinceCreated часов назад"),
+                        replyMessageId = suggestion.editorMessageId
+                    )
+                    forgotten++
+                }
+            }
+        }
+    }
+    return forgotten
+}
+
+private suspend fun BotContext.postScheduledSuggestions(footerMd: String): Int {
+    val targetChannel = settings[TARGET_CHANNEL]
+    var scheduled = 0
+    val suggestions = doNotThrow("Failed to fetch scheduled suggestions from DB") {
+        suggestionStore.findReadyForSchedule()
+    }
+    logger.info("Currently there are ${suggestions?.size} ready for schedule posts, notifying...")
+    suggestions?.forEach { suggestion ->
+        doNotThrow("Failed to post scheduled suggestion to channel") {
+            val anonymous = suggestion.status != SuggestionStatus.SCHEDULE_PUBLICLY
+            val post = TgPreparedPost(
+                suggestion.postText, suggestion.imageId, footerMarkdown = footerMd,
+                suggestionReference = suggestion
+                    .authorReference(anonymous)
+            )
+            sendTelegramPost(targetChannel, post)
+            suggestionStore.removeByChatAndMessageId(suggestion.authorChatId, suggestion.authorMessageId, byAuthor = true)
+            scheduled++
+            if (settings[SEND_PROMOTION_FEEDBACK].toBoolean()) {
+                tgMessageSender.sendChatMessage(suggestion.authorChatId.toString(),
+                    TgTextOutput(UserMessages.postPromotedMessage.format(suggestion.postText.trimToLength(20, "..."))))
+            }
+        }
+    }
+    return scheduled
+}
+
+private suspend inline fun <T> BotContext.doNotThrow(message: String, block: () -> T?): T? = try {
+    block()
+} catch (e: Exception) {
+    val clientError = (e as? ClientRequestException)?.response?.content?.readUTF8Line()
+    val markdownText =
+        "$message, please check logs, error message:\n`${clientError ?: e.message}`"
+    logger.error(markdownText, e)
+    val output = TgTextOutput(markdownText)
+    ownerIds.forEach { tgMessageSender.sendChatMessage(it, output) }
+    null
 }
 
 suspend fun BotContext.sendTelegramPost(targetChat: String, prepared: TgPreparedPost, keyboardMarkup: InlineKeyboardMarkup? = null): Message? {

@@ -6,5 +6,9 @@ enum class SuggestionStatus {
     // scheduled job is able pick up the finalized post
     READY_FOR_SUGGESTION,
     // waiting for editors to review and either repost or delete the post, anyway after that the post is deleted form DB
-    PENDING_EDITOR_REVIEW
+    PENDING_EDITOR_REVIEW,
+    // action taken, but schedule to post anonymously after chosen amount of time
+    SCHEDULE_ANONYMOUSLY,
+    // action taken, but schedule to post publicly after chosen amount of time
+    SCHEDULE_PUBLICLY,
 }
