@@ -290,7 +290,7 @@ suspend fun BotContext.forwardSuggestions(forcedByOwner: Boolean = false) {
             val message = "*SUGGESTIONS*\n" +
                     "\nRight now forwarded $forwarded suggestions from users." +
                     "\nEditors forgot to review $forgotten posts." +
-                    "\nPosted $forgotten scheduled posts."
+                    "\nPosted $scheduled scheduled posts."
             logger.info(message)
             if (settings[SEND_SUGGESTION_STATUS].toBoolean()) {
                 ownerIds.forEach { tgMessageSender.sendChatMessage(it, TgTextOutput(message)) }
@@ -316,8 +316,8 @@ private suspend fun BotContext.notifyAboutForgottenSuggestions(forcedByOwner: Bo
             doNotThrow("Failed to notify about forgotten post") {
                 val hoursSinceCreated = Duration
                     .between(Instant.now(), suggestion.insertedTime.toInstant()).abs().toHours()
-                logger.info("Post from ${suggestion.authorName} created $hoursSinceCreated hours ago")
                 if (hoursSinceCreated > 24) {
+                    logger.info("Post from ${suggestion.authorName} created $hoursSinceCreated hours ago")
                     tgMessageSender.sendChatMessage(
                         suggestion.editorChatId.toString(),
                         TgTextOutput("Забытый пост, создан $hoursSinceCreated часов назад"),
