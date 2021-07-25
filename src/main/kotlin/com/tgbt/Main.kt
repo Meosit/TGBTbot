@@ -353,6 +353,7 @@ private suspend fun BotContext.postScheduledSuggestions(footerMd: String): Int {
                 tgMessageSender.sendChatMessage(suggestion.authorChatId.toString(),
                     TgTextOutput(UserMessages.postPromotedMessage.format(suggestion.postText.trimToLength(20, "..."))))
             }
+
         }
     }
     return scheduled

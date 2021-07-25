@@ -17,6 +17,9 @@ import com.tgbt.telegram.output.TgTextOutput
 import java.sql.Timestamp
 import java.time.Duration
 import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.*
 
 object EditorButtonAction {
     private val scheduleDelays = mapOf(
@@ -76,14 +79,22 @@ object EditorButtonAction {
                             TgTextOutput(UserMessages.postDiscardedMessage.format(suggestion.postText.trimToLength(20, "..."))))
                     }
                 }
-                sendDeletedConfirmation(message, callback, "❌ Удалён ${callback.userRef()} ❌")
+                sendDeletedConfirmation(message, callback, "❌ Удалён ${callback.userRef()} в ${Instant.now().formatTime()} ❌")
             }
             CONFIRM_POST_PUBLICLY_DATA -> sendSuggestion(suggestion, message, callback, anonymous = false)
             CONFIRM_POST_ANONYMOUSLY_DATA -> sendSuggestion(suggestion, message, callback, anonymous = true)
             CANCEL_DATA -> {
-                val keyboardJson = json.stringify(InlineKeyboardMarkup.serializer(), ACTION_KEYBOARD)
-                tgMessageSender.editChatMessageKeyboard(message.chat.id.toString(), message.id, keyboardJson)
-                tgMessageSender.pingCallbackQuery(callback.id, "Действие отменено")
+                if (suggestion != null) {
+                    val keyboardJson = json.stringify(InlineKeyboardMarkup.serializer(), ACTION_KEYBOARD)
+                    if (suggestion.scheduleTime != null) {
+                        val updated = suggestion.copy(scheduleTime = null, status = SuggestionStatus.PENDING_EDITOR_REVIEW)
+                        suggestionStore.update(updated, byAuthor = false)
+                    }
+                    tgMessageSender.editChatMessageKeyboard(message.chat.id.toString(), message.id, keyboardJson)
+                    tgMessageSender.pingCallbackQuery(callback.id, "Действие отменено")
+                } else {
+                    sendPostNotFound(message, callback)
+                }
             }
             else -> when {
                 suggestion != null && callback.data?.validSchedulePayload(SCHEDULE_POST_ANONYMOUSLY_DATA) == true ->
@@ -112,10 +123,15 @@ object EditorButtonAction {
         val scheduleInstant = Instant.now().plus(duration)
         val updated = suggestion.copy(scheduleTime = Timestamp.from(scheduleInstant), status = status)
         suggestionStore.update(updated, byAuthor = false)
-        val buttonLabel = "⌛️ Отложен ${callback.userRef()} на ${scheduleDelays[duration]} ⌛️"
+        val scheduleLabel = scheduleInstant.formatTime()
+        val buttonLabel = "⌛️ Отложен ${callback.userRef()} на ≈$scheduleLabel ⌛️"
         sendDeletedConfirmation(message, callback, buttonLabel,
-            InlineKeyboardButton("$emoji Отправить прямо сейчас", confirm))
+            listOf(InlineKeyboardButton("$emoji Прямо сейчас", confirm), InlineKeyboardButton("↩️ Отмена действия", CANCEL_DATA)))
     }
+
+    private fun Instant.formatTime(): String =
+        DateTimeFormatter.ofPattern("HH:mm, EE").withLocale(Locale("ru"))
+            .format(this.atZone(ZoneId.of("Europe/Moscow")))
 
     private fun String.validSchedulePayload(prefix: String) = this.startsWith(prefix)
             && this.removePrefix(prefix).toLongOrNull() != null
@@ -137,14 +153,30 @@ object EditorButtonAction {
             sendTelegramPost(channel, post)
             suggestionStore.removeByChatAndMessageId(suggestion.editorChatId, suggestion.editorMessageId, byAuthor = false)
             val emoji = if (anonymous) "✅" else "☑️"
-            sendDeletedConfirmation(message, callback, "$emoji Опубликован ${callback.userRef()} $emoji")
+            sendDeletedConfirmation(message, callback, "$emoji Опубликован ${callback.userRef()} в ${Instant.now().formatTime()} $emoji")
             if (settings[Setting.SEND_PROMOTION_FEEDBACK].toBoolean()) {
                 tgMessageSender.sendChatMessage(suggestion.authorChatId.toString(),
                     TgTextOutput(UserMessages.postPromotedMessage.format(suggestion.postText.trimToLength(20, "..."))))
             }
         } else {
-            sendDeletedConfirmation(message, callback, "❔ Пост не найден ❔")
+            sendPostNotFound(message, callback)
         }
+    }
+
+    private suspend fun BotContext.sendPostNotFound(
+        message: Message,
+        callback: CallbackQuery
+    ) {
+        val firstButtonLabel = message.replyMarkup?.inlineKeyboard?.getOrNull(0)?.getOrNull(0)?.text
+        val anonymous = message.replyMarkup?.inlineKeyboard?.getOrNull(1)?.getOrNull(0)?.text?.contains("☑️") == false
+        // handling action on already forwarded via schedule post - removing any action buttons
+        val buttonLabel = if (firstButtonLabel != null && firstButtonLabel.contains("⌛️")) {
+            val emoji = if (anonymous) "✅" else "☑️"
+            firstButtonLabel.replace("Отложен", "Уже опубликован").replaceFirst("⌛", emoji)
+        } else {
+            "❔ Пост не найден ❔"
+        }
+        sendDeletedConfirmation(message, callback, buttonLabel)
     }
 
     private fun CallbackQuery.userRef() =  from.username?.let { "@$it" } ?: from.firstName
@@ -179,12 +211,12 @@ object EditorButtonAction {
         message: Message,
         callback: CallbackQuery,
         buttonLabel: String,
-        optionalAction: InlineKeyboardButton? = null
+        optionalActions: List<InlineKeyboardButton>? = null
     ) {
-        val inlineKeyboardMarkup = if (optionalAction == null) {
+        val inlineKeyboardMarkup = if (optionalActions == null) {
             InlineKeyboardMarkup(listOf(listOf(InlineKeyboardButton(buttonLabel, DELETED_DATA))))
         } else {
-            InlineKeyboardMarkup(listOf(listOf(InlineKeyboardButton(buttonLabel, DELETED_DATA)), listOf(optionalAction)))
+            InlineKeyboardMarkup(listOf(listOf(InlineKeyboardButton(buttonLabel, DELETED_DATA)), optionalActions))
         }
         val keyboardJson = json.stringify(InlineKeyboardMarkup.serializer(), inlineKeyboardMarkup)
         tgMessageSender.editChatMessageKeyboard(message.chat.id.toString(), message.id, keyboardJson)
