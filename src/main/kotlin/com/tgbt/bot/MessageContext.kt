@@ -2,6 +2,7 @@ package com.tgbt.bot
 
 import com.tgbt.bot.editor.EditorHelpCommand
 import com.tgbt.bot.editor.EditorUpdatePostCommand
+import com.tgbt.bot.editor.ForgottenPostsCommand
 import com.tgbt.bot.owner.*
 import com.tgbt.bot.user.*
 import com.tgbt.misc.escapeMarkdown
@@ -124,7 +125,8 @@ data class MessageContext(
         )
 
         private val EDITOR_COMMANDS: List<BotCommand> = listOf(
-            EditorHelpCommand
+            EditorHelpCommand,
+            ForgottenPostsCommand
         )
     }
 }

@@ -301,7 +301,7 @@ suspend fun BotContext.forwardSuggestions(forcedByOwner: Boolean = false) {
     }
 }
 
-private suspend fun BotContext.notifyAboutForgottenSuggestions(forcedByOwner: Boolean = false): Int {
+suspend fun BotContext.notifyAboutForgottenSuggestions(forcedByOwner: Boolean = false): Int {
     val start = LocalTime.of(0, 0, 0, 0)
     val end = LocalTime.of(0, settings[SUGGESTION_POLLING_DELAY_MINUTES].toInt(), 0, 0)
     val now = LocalTime.from(Instant.now().atZone(ZoneId.of("Europe/Moscow")))
