@@ -207,10 +207,9 @@ suspend fun BotContext.forwardVkPosts(forcedByOwner: Boolean = false) {
                 .take(20)
                 .also { logger.info("Taking only first ${it.size} to avoid request rate errors") }
         }
-
-        doNotThrow("Failed to send posts to TG") {
-            var forwarded = 0
-            postsToForward?.forEach {
+        val forwarded = mutableListOf<String>()
+        postsToForward?.forEach {
+            doNotThrow("Post https://vk.com/wall${communityId}_${it.id} failed to send\nTo have it in telegram, post manually.\nAlso") {
                 val prepared = TgPreparedPost(it.text, it.imageUrl, footerMd)
                 if (postStore.insert(it)) {
                     logger.info(
@@ -222,16 +221,21 @@ suspend fun BotContext.forwardVkPosts(forcedByOwner: Boolean = false) {
                         }'"
                     )
                     sendTelegramPost(targetChannel, prepared)
-                    forwarded++
+                    val link = "https://vk.com/wall${communityId}_${it.id}"
+                    val vk = it.stats
+                    forwarded.add("[Post | ${vk.likes}\uD83E\uDD0D ${vk.reposts}\uD83D\uDCE2 ${vk.comments}\uD83D\uDCAC ${vk.views}\uD83D\uDC41]($link)")
                 }
             }
-            if (forcedByOwner || (sendStatus && forwarded > 0)) {
+        }
+        if (forcedByOwner || (sendStatus && forwarded.size > 0)) {
+            doNotThrow("Failed to send stats to TG") {
                 val message = "*FORWARDING*\n" +
-                        "Right now forwarded $forwarded posts from VK to Telegram:\n" +
+                        "\nRight now forwarded ${forwarded.size} posts from VK to Telegram:\n" +
                         "${stats["total"]} loaded in total\n" +
-                        "${stats["condition"]} after filtering by condition\n"
+                        "${stats["condition"]} after filtering by condition\n" +
+                        "Posts:\n> " + forwarded.joinToString("\n> ")
                 logger.info(message)
-                ownerIds.forEach { tgMessageSender.sendChatMessage(it, TgTextOutput(message)) }
+                ownerIds.forEach { tgMessageSender.sendChatMessage(it, TgTextOutput(message), disableLinkPreview = true) }
             }
         }
 
