@@ -404,6 +404,7 @@ suspend fun BotContext.sendTelegramPost(targetChat: String, prepared: TgPrepared
             // footer links should not be previewed.
             val disableLinkPreview = prepared.footerMarkdown.contains("https://")
                     && !prepared.text.contains("https://")
+                    && prepared.maybeImage == null
             tgMessageSender.sendChatMessage(
                 targetChat,
                 TgTextOutput(prepared.withImage, keyboardJson),
