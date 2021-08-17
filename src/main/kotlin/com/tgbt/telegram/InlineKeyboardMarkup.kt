@@ -13,3 +13,5 @@ data class InlineKeyboardButton(
     val text: String,
     @SerialName("callback_data") val callbackData: String? = null
 )
+
+fun InlineKeyboardButton.toMarkup() = InlineKeyboardMarkup(listOf(listOf(this)))

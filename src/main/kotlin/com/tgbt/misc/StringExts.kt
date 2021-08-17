@@ -4,6 +4,10 @@ import com.tgbt.bot.BotContext
 import java.io.InputStreamReader
 import java.net.URI
 import java.net.URISyntaxException
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.*
 
 /**
  * Returns a string trimmed to the specified [length] with optional [tail] string added at the end of the trimmed string.
@@ -39,6 +43,9 @@ fun String.isImageUrl(): Boolean {
     }
 }
 
+fun Instant.simpleFormatTime(): String =
+    DateTimeFormatter.ofPattern("HH:mm, EE").withLocale(Locale("ru"))
+        .format(this.atZone(ZoneId.of("Europe/Moscow")))
 
 fun loadResourceAsString(resourceBaseName: String): String = BotContext::class.java.classLoader
     .getResourceAsStream(resourceBaseName)

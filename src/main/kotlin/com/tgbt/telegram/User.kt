@@ -15,3 +15,6 @@ data class User(
 
 val User.verboseUserName: String get() =
     username?.let { "@$it" } ?: "[$firstName${lastName?.let { " $it" } ?: ""}](tg://user?id=$id)"
+
+val User.simpleRef: String get() =
+    username?.let { "@$it" } ?: firstName

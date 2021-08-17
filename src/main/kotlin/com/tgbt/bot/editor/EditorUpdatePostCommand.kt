@@ -4,16 +4,17 @@ import com.tgbt.bot.BotContext
 import com.tgbt.bot.MessageContext
 import com.tgbt.bot.user.PostCommand
 import com.tgbt.bot.user.UserMessages
+import com.tgbt.misc.escapeMarkdown
 import com.tgbt.misc.isImageUrl
+import com.tgbt.misc.simpleFormatTime
 import com.tgbt.misc.trimToLength
 import com.tgbt.post.TgPreparedPost
 import com.tgbt.settings.Setting
 import com.tgbt.suggestion.UserSuggestion
 import com.tgbt.suggestion.authorReference
-import com.tgbt.telegram.InlineKeyboardMarkup
-import com.tgbt.telegram.Message
-import com.tgbt.telegram.imageId
+import com.tgbt.telegram.*
 import com.tgbt.telegram.output.TgTextOutput
+import java.time.Instant
 
 class EditorUpdatePostCommand(private val suggestion: UserSuggestion): PostCommand() {
 
@@ -27,6 +28,21 @@ class EditorUpdatePostCommand(private val suggestion: UserSuggestion): PostComma
                 updatedSuggestion = suggestion.copy(imageId = null)
                 suggestionStore.update(updatedSuggestion, byAuthor = false)
                 tgMessageSender.sendChatMessage(chatId, TgTextOutput(noPicMessage), replyMessageId = message.id)
+            }
+            messageText.startsWith("/reject") -> {
+                when (val value = messageText.removePrefix("/reject").trim()) {
+                    "" -> tgMessageSender.sendChatMessage(chatId, TgTextOutput("Зачем использовать эту команду без комментария?"), message.id)
+                    else -> {
+                        if (suggestion.editorChatId != null && suggestion.editorMessageId != null) {
+                            suggestionStore.removeByChatAndMessageId(suggestion.editorChatId, suggestion.editorMessageId, byAuthor = false)
+                            tgMessageSender.sendChatMessage(suggestion.authorChatId.toString(), TgTextOutput(UserMessages.postDiscardedWithCommentMessage
+                                .format(suggestion.postText.trimToLength(20, "..."), value.escapeMarkdown())))
+                            val keyboardJson = json.stringify(InlineKeyboardMarkup.serializer(),
+                                InlineKeyboardButton("❌ Удалён ${message.from?.simpleRef ?: "anon"} в ${Instant.now().simpleFormatTime()} ❌", EditorButtonAction.DELETED_DATA).toMarkup())
+                            tgMessageSender.editChatMessageKeyboard(suggestion.editorChatId.toString(), suggestion.editorMessageId, keyboardJson)
+                        }
+                    }
+                }
             }
             messageText.trim().isImageUrl() -> {
                 updatedSuggestion = suggestion.copy(imageId = messageText.trim())

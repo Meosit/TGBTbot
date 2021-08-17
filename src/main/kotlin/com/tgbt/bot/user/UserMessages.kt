@@ -9,6 +9,7 @@ object UserMessages {
 
     val postPromotedMessage = loadResourceAsString("user/post.promoted.md")
     val postDiscardedMessage = loadResourceAsString("user/post.discarded.md")
+    val postDiscardedWithCommentMessage = loadResourceAsString("user/post.discarded.comment.md")
     val postUpdatedMessage = loadResourceAsString("user/post.updated.md")
     val postDeletedMessage = loadResourceAsString("user/post.deleted.md")
     val postPhotoDeletedMessage = loadResourceAsString("user/post.photo.deleted.md")

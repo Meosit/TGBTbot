@@ -2,6 +2,7 @@ package com.tgbt.bot.editor
 
 import com.tgbt.bot.BotContext
 import com.tgbt.bot.user.UserMessages
+import com.tgbt.misc.simpleFormatTime
 import com.tgbt.misc.trimToLength
 import com.tgbt.post.TgPreparedPost
 import com.tgbt.sendTelegramPost
@@ -9,17 +10,11 @@ import com.tgbt.settings.Setting
 import com.tgbt.suggestion.SuggestionStatus
 import com.tgbt.suggestion.UserSuggestion
 import com.tgbt.suggestion.authorReference
-import com.tgbt.telegram.CallbackQuery
-import com.tgbt.telegram.InlineKeyboardButton
-import com.tgbt.telegram.InlineKeyboardMarkup
-import com.tgbt.telegram.Message
+import com.tgbt.telegram.*
 import com.tgbt.telegram.output.TgTextOutput
 import java.sql.Timestamp
 import java.time.Duration
 import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-import java.util.*
 
 object EditorButtonAction {
     private val scheduleDelays = mapOf(
@@ -40,7 +35,7 @@ object EditorButtonAction {
     private const val SCHEDULE_POST_PUBLICLY_DATA = "deanon_sch_"
 
     private const val CANCEL_DATA = "cancel"
-    private const val DELETED_DATA = "deleted"
+    internal const val DELETED_DATA = "deleted"
 
     val ACTION_KEYBOARD = InlineKeyboardMarkup(listOf(
         listOf(InlineKeyboardButton("❌ Удалить пост", DELETE_ACTION_DATA)),
@@ -79,7 +74,7 @@ object EditorButtonAction {
                             TgTextOutput(UserMessages.postDiscardedMessage.format(suggestion.postText.trimToLength(20, "..."))))
                     }
                 }
-                sendDeletedConfirmation(message, callback, "❌ Удалён ${callback.userRef()} в ${Instant.now().formatTime()} ❌")
+                sendDeletedConfirmation(message, callback, "❌ Удалён ${callback.userRef()} в ${Instant.now().simpleFormatTime()} ❌")
             }
             CONFIRM_POST_PUBLICLY_DATA -> sendSuggestion(suggestion, message, callback, anonymous = false)
             CONFIRM_POST_ANONYMOUSLY_DATA -> sendSuggestion(suggestion, message, callback, anonymous = true)
@@ -123,15 +118,11 @@ object EditorButtonAction {
         val scheduleInstant = Instant.now().plus(duration)
         val updated = suggestion.copy(scheduleTime = Timestamp.from(scheduleInstant), status = status)
         suggestionStore.update(updated, byAuthor = false)
-        val scheduleLabel = scheduleInstant.formatTime()
+        val scheduleLabel = scheduleInstant.simpleFormatTime()
         val buttonLabel = "⌛️ Отложен ${callback.userRef()} на ≈$scheduleLabel ⌛️"
         sendDeletedConfirmation(message, callback, buttonLabel,
             listOf(InlineKeyboardButton("$emoji Прямо сейчас", confirm), InlineKeyboardButton("↩️ Отмена действия", CANCEL_DATA)))
     }
-
-    private fun Instant.formatTime(): String =
-        DateTimeFormatter.ofPattern("HH:mm, EE").withLocale(Locale("ru"))
-            .format(this.atZone(ZoneId.of("Europe/Moscow")))
 
     private fun String.validSchedulePayload(prefix: String) = this.startsWith(prefix)
             && this.removePrefix(prefix).toLongOrNull() != null
@@ -153,7 +144,7 @@ object EditorButtonAction {
             sendTelegramPost(channel, post)
             suggestionStore.removeByChatAndMessageId(suggestion.editorChatId, suggestion.editorMessageId, byAuthor = false)
             val emoji = if (anonymous) "✅" else "☑️"
-            sendDeletedConfirmation(message, callback, "$emoji Опубликован ${callback.userRef()} в ${Instant.now().formatTime()} $emoji")
+            sendDeletedConfirmation(message, callback, "$emoji Опубликован ${callback.userRef()} в ${Instant.now().simpleFormatTime()} $emoji")
             if (settings[Setting.SEND_PROMOTION_FEEDBACK].toBoolean()) {
                 tgMessageSender.sendChatMessage(suggestion.authorChatId.toString(),
                     TgTextOutput(UserMessages.postPromotedMessage.format(suggestion.postText.trimToLength(20, "..."))))
@@ -179,7 +170,7 @@ object EditorButtonAction {
         sendDeletedConfirmation(message, callback, buttonLabel)
     }
 
-    private fun CallbackQuery.userRef() =  from.username?.let { "@$it" } ?: from.firstName
+    private fun CallbackQuery.userRef() =  from.simpleRef
 
     private suspend fun BotContext.sendConfirmDialog(
         message: Message,
@@ -214,7 +205,7 @@ object EditorButtonAction {
         optionalActions: List<InlineKeyboardButton>? = null
     ) {
         val inlineKeyboardMarkup = if (optionalActions == null) {
-            InlineKeyboardMarkup(listOf(listOf(InlineKeyboardButton(buttonLabel, DELETED_DATA))))
+            InlineKeyboardButton(buttonLabel, DELETED_DATA).toMarkup()
         } else {
             InlineKeyboardMarkup(listOf(listOf(InlineKeyboardButton(buttonLabel, DELETED_DATA)), optionalActions))
         }
