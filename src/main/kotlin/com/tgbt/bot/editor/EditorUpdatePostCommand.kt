@@ -76,6 +76,7 @@ class EditorUpdatePostCommand(private val suggestion: UserSuggestion): PostComma
                 // footer links should not be previewed.
                 val disableLinkPreview = prepared.footerMarkdown.contains("https://")
                         && !prepared.text.contains("https://")
+                        && !(prepared.maybeImage?.isImageUrl() ?: false)
                 tgMessageSender.editChatMessageText(
                     message.chat.id.toString(),
                     message.id,
