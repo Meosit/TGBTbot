@@ -41,7 +41,7 @@ class EditorUpdatePostCommand(private val suggestion: UserSuggestion): PostComma
                                 tgMessageSender.sendChatMessage(suggestion.authorChatId.toString(), TgTextOutput(UserMessages.postDiscardedWithCommentMessage
                                     .format(suggestion.postText.trimToLength(20, "..."), value.escapeMarkdown())))
                                 val keyboardJson = json.stringify(InlineKeyboardMarkup.serializer(),
-                                    InlineKeyboardButton("❌ Удалён ${message.from?.simpleRef ?: "anon"} в ${Instant.now().simpleFormatTime()} ❌", EditorButtonAction.DELETED_DATA).toMarkup())
+                                    InlineKeyboardButton("❌ Удалён ${message.from?.simpleRef ?: "anon"} c \uD83D\uDCAC в ${Instant.now().simpleFormatTime()} ❌", EditorButtonAction.DELETED_DATA).toMarkup())
                                 tgMessageSender.editChatMessageKeyboard(suggestion.editorChatId.toString(), suggestion.editorMessageId, keyboardJson)
                                 logger.info("Editor ${message.from?.simpleRef} rejected post '${suggestion.postText.trimToLength(20, "...")}' from ${suggestion.authorName} with comment '$value'")
                             }

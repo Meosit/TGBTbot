@@ -21,6 +21,7 @@ import com.tgbt.telegram.output.TgTextOutput
 import org.slf4j.LoggerFactory
 import java.time.Instant
 import java.time.temporal.ChronoUnit
+import kotlin.math.max
 
 class UpdatePostCommand(private val suggestion: UserSuggestion) : PostCommand() {
 
@@ -30,14 +31,14 @@ class UpdatePostCommand(private val suggestion: UserSuggestion) : PostCommand() 
         val suggestionDelayMinutes = settings[Setting.USER_SUGGESTION_DELAY_MINUTES].toLong()
         logger.info("Updating post, minutes after insert: $diffMinutes")
         when {
-            diffMinutes >= suggestionDelayMinutes -> {
+            diffMinutes >= suggestionDelayMinutes && !isEdit -> {
                 AddPostCommand.handleCommand(this@handle)
             }
             diffMinutes >= editTimeMinutes -> {
                 val updatedPost = suggestion.copy(status = SuggestionStatus.READY_FOR_SUGGESTION)
                 suggestionStore.update(updatedPost, byAuthor = true)
                 tgMessageSender.sendChatMessage(chatId, TgTextOutput(updateTimeoutErrorMessage
-                    .format(editTimeMinutes, suggestionDelayMinutes - diffMinutes)))
+                    .format(editTimeMinutes, max(0, suggestionDelayMinutes - diffMinutes))))
                 logger.info("User ${suggestion.authorName} tried to update post after timeout '${updatedPost.postText.trimToLength(20, "...")}'")
             }
             isEdit && messageText.isBlank() ->

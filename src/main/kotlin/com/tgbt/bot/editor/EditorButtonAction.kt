@@ -25,7 +25,13 @@ object EditorButtonAction {
         Duration.ofHours(6) to "6 часов",
         Duration.ofHours(8) to "8 часов"
     )
+    private val rejectComments = mapOf(
+        "ddos" to "хватит это форсить",
+        "notfun" to "не смешно же",
+        "endfail" to "концовка слита"
+    )
     private const val DELETE_ACTION_DATA = "del"
+    private const val DELETE_WITH_COMMENT_DATA = "del_comment_"
     private const val CONFIRM_DELETE_ACTION_DATA = "del_confirm"
     private const val POST_ANONYMOUSLY_DATA = "anon"
     private const val CONFIRM_POST_ANONYMOUSLY_DATA = "anon_confirm"
@@ -59,29 +65,14 @@ object EditorButtonAction {
         val suggestion = suggestionStore.findByChatAndMessageId(message.chat.id, message.id, byAuthor = false)
         when(callback.data) {
             DELETE_ACTION_DATA -> sendConfirmDialog(message, callback,
-                InlineKeyboardButton("❌ Точно удалить?", CONFIRM_DELETE_ACTION_DATA), {})
+                InlineKeyboardButton("❌ Точно удалить?", CONFIRM_DELETE_ACTION_DATA), rejectPlaceholders())
             POST_ANONYMOUSLY_DATA -> sendConfirmDialog(message, callback,
                 InlineKeyboardButton("✅ Точно отправить анонимно?", CONFIRM_POST_ANONYMOUSLY_DATA),
                 scheduleButtons(SCHEDULE_POST_ANONYMOUSLY_DATA))
             POST_PUBLICLY_DATA -> sendConfirmDialog(message, callback,
                 InlineKeyboardButton("☑️ Точно отправить с именем?", CONFIRM_POST_PUBLICLY_DATA),
                 scheduleButtons(SCHEDULE_POST_PUBLICLY_DATA))
-            CONFIRM_DELETE_ACTION_DATA -> {
-                if (suggestion?.editorChatId != null && suggestion.editorMessageId != null) {
-                    val actuallyDeleted = suggestionStore.removeByChatAndMessageId(suggestion.editorChatId, suggestion.editorMessageId, byAuthor = false)
-                    if (actuallyDeleted) {
-                        if (settings[Setting.SEND_DELETION_FEEDBACK].toBoolean()) {
-                            tgMessageSender.sendChatMessage(suggestion.authorChatId.toString(),
-                                TgTextOutput(UserMessages.postDiscardedMessage.format(suggestion.postText.trimToLength(20, "..."))))
-                        }
-                        sendDeletedConfirmation(message, callback, "❌ Удалён ${callback.userRef()} в ${Instant.now().simpleFormatTime()} ❌")
-                    } else {
-                        sendPostNotFound(message, callback)
-                    }
-                } else {
-                    sendPostNotFound(message, callback)
-                }
-            }
+            CONFIRM_DELETE_ACTION_DATA -> rejectPost(suggestion, message, callback)
             CONFIRM_POST_PUBLICLY_DATA -> sendSuggestion(suggestion, message, callback, anonymous = false)
             CONFIRM_POST_ANONYMOUSLY_DATA -> sendSuggestion(suggestion, message, callback, anonymous = true)
             CANCEL_DATA -> {
@@ -102,8 +93,38 @@ object EditorButtonAction {
                     scheduleSuggestion(callback.data, suggestion, callback, message, anonymous = true)
                 suggestion != null && callback.data?.validSchedulePayload(SCHEDULE_POST_PUBLICLY_DATA) == true ->
                     scheduleSuggestion(callback.data, suggestion, callback, message, anonymous = false)
+                suggestion != null && callback.data?.validRejectWithCommentPayload() == true ->
+                    rejectPost(suggestion, message, callback, rejectComments[callback.data.removePrefix(DELETE_WITH_COMMENT_DATA)])
                 else -> tgMessageSender.pingCallbackQuery(callback.id, "Нераспознанные данные '${callback.data}'")
             }
+        }
+    }
+
+    private suspend fun BotContext.rejectPost(
+        suggestion: UserSuggestion?,
+        message: Message,
+        callback: CallbackQuery,
+        rejectComment: String? = null
+    ) {
+        if (suggestion?.editorChatId != null && suggestion.editorMessageId != null) {
+            val actuallyDeleted = suggestionStore.removeByChatAndMessageId(suggestion.editorChatId, suggestion.editorMessageId, byAuthor = false)
+            if (actuallyDeleted) {
+                if (settings[Setting.SEND_DELETION_FEEDBACK].toBoolean()) {
+                    val outputMessage = if (rejectComment != null) {
+                        UserMessages.postDiscardedWithCommentMessage.format(suggestion.postText.trimToLength(20, "..."), rejectComment)
+                    } else {
+                        UserMessages.postDiscardedMessage.format(suggestion.postText.trimToLength(20, "..."))
+                    }
+                    tgMessageSender.sendChatMessage(suggestion.authorChatId.toString(), TgTextOutput(outputMessage))
+                }
+                val commentMark = if (rejectComment != null) " c \uD83D\uDCAC" else ""
+                sendDeletedConfirmation(message, callback,
+                    "❌ Удалён ${callback.userRef()}$commentMark в ${Instant.now().simpleFormatTime()} ❌")
+            } else {
+                sendPostNotFound(message, callback)
+            }
+        } else {
+            sendPostNotFound(message, callback)
         }
     }
 
@@ -133,6 +154,9 @@ object EditorButtonAction {
     private fun String.validSchedulePayload(prefix: String) = this.startsWith(prefix)
             && this.removePrefix(prefix).toLongOrNull() != null
             && Duration.ofMinutes(this.removePrefix(prefix).toLong()) in scheduleDelays
+
+    private fun String.validRejectWithCommentPayload() = this.startsWith(DELETE_WITH_COMMENT_DATA)
+            && this.removePrefix(DELETE_WITH_COMMENT_DATA) in rejectComments
 
     private suspend fun BotContext.sendSuggestion(
         suggestion: UserSuggestion?,
@@ -202,6 +226,11 @@ object EditorButtonAction {
         for (i in buttons.indices step 2) {
             yield((0 until 2).mapNotNull { buttons.getOrNull(it + i) })
         }
+    }
+
+    private suspend fun rejectPlaceholders(): suspend SequenceScope<List<InlineKeyboardButton>>.() -> Unit = { rejectComments
+            .map { (key, comment) -> InlineKeyboardButton("❌ \uD83D\uDCAC \"$comment\" ❌", "$DELETE_WITH_COMMENT_DATA$key") }
+            .forEach { yield(listOf(it)) }
     }
 
     private suspend fun BotContext.sendDeletedConfirmation(
