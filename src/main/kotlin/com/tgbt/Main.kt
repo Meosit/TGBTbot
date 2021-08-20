@@ -6,6 +6,7 @@ import com.tgbt.bot.editor.EditorButtonAction
 import com.tgbt.bot.user.UserMessages
 import com.tgbt.grammar.*
 import com.tgbt.misc.escapeMarkdown
+import com.tgbt.misc.isImageUrl
 import com.tgbt.misc.trimToLength
 import com.tgbt.post.PostStore
 import com.tgbt.post.TgPreparedPost
@@ -49,6 +50,7 @@ import java.time.Duration
 import java.time.Instant
 import java.time.LocalTime
 import java.time.ZoneId
+import java.time.temporal.ChronoUnit
 import java.util.concurrent.TimeUnit
 
 private val logger = LoggerFactory.getLogger("MainKt")
@@ -259,8 +261,12 @@ suspend fun BotContext.forwardSuggestions(forcedByOwner: Boolean = false) {
         logger.info("Checking for posts which are ready for suggestion")
         doNotThrow("Failed to change suggestions status PENDING_USER_EDIT -> READY_FOR_SUGGESTION") {
             val suggestions = suggestionStore.findByStatus(SuggestionStatus.PENDING_USER_EDIT)
+            val editTimeMinutes = settings[USER_EDIT_TIME_MINUTES].toLong()
             for (suggestion in suggestions) {
-                suggestionStore.update(suggestion.copy(status = SuggestionStatus.READY_FOR_SUGGESTION), byAuthor = true)
+                val diffMinutes = ChronoUnit.MINUTES.between(suggestion.insertedTime.toInstant(), Instant.now())
+                if (diffMinutes >= editTimeMinutes) {
+                    suggestionStore.update(suggestion.copy(status = SuggestionStatus.READY_FOR_SUGGESTION), byAuthor = true)
+                }
             }
         }
         logger.info("Checking for new suggested posts")
@@ -305,13 +311,15 @@ suspend fun BotContext.forwardSuggestions(forcedByOwner: Boolean = false) {
     }
 }
 
-suspend fun BotContext.notifyAboutForgottenSuggestions(forcedByOwner: Boolean = false): Int {
+suspend fun BotContext.notifyAboutForgottenSuggestions(forcedByOwner: Boolean = false, createdBeforeHours: Int = 0): Int {
     val start = LocalTime.of(0, 0, 0, 0)
     val end = LocalTime.of(0, settings[SUGGESTION_POLLING_DELAY_MINUTES].toInt(), 0, 0)
     val now = LocalTime.from(Instant.now().atZone(ZoneId.of("Europe/Moscow")))
     var forgotten = 0
     if (forcedByOwner || (now.isAfter(start) && now.isBefore(end))) {
-        logger.info("New day, checking for forgotten posts")
+        if (!forcedByOwner) {
+            logger.info("New day, checking for forgotten posts")
+        }
         val forgottenSuggestions = doNotThrow("Failed to fetch PENDING_EDITOR_REVIEW suggestions from DB") {
             suggestionStore.findByStatus(SuggestionStatus.PENDING_EDITOR_REVIEW)
         }
@@ -320,11 +328,11 @@ suspend fun BotContext.notifyAboutForgottenSuggestions(forcedByOwner: Boolean = 
             doNotThrow("Failed to notify about forgotten post") {
                 val hoursSinceCreated = Duration
                     .between(Instant.now(), suggestion.insertedTime.toInstant()).abs().toHours()
-                if (hoursSinceCreated > 24) {
+                if (hoursSinceCreated > createdBeforeHours) {
                     logger.info("Post from ${suggestion.authorName} created $hoursSinceCreated hours ago")
                     tgMessageSender.sendChatMessage(
                         suggestion.editorChatId.toString(),
-                        TgTextOutput("Забытый пост, создан $hoursSinceCreated часов назад"),
+                        TgTextOutput("Пост ждёт обработки, создан $hoursSinceCreated часов назад"),
                         replyMessageId = suggestion.editorMessageId
                     )
                     forgotten++
@@ -404,7 +412,7 @@ suspend fun BotContext.sendTelegramPost(targetChat: String, prepared: TgPrepared
             // footer links should not be previewed.
             val disableLinkPreview = prepared.footerMarkdown.contains("https://")
                     && !prepared.text.contains("https://")
-                    && prepared.maybeImage == null
+                    && !(prepared.maybeImage?.isImageUrl() ?: false)
             tgMessageSender.sendChatMessage(
                 targetChat,
                 TgTextOutput(prepared.withImage, keyboardJson),

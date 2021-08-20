@@ -10,7 +10,8 @@ object ForgottenPostsCommand : BotCommand {
     override val command: String = "/forgotten"
 
     override suspend fun MessageContext.handle() {
-        bot.notifyAboutForgottenSuggestions(true)
+        val threshold = messageText.removePrefix(command).trim().toIntOrNull()?.takeIf { it in 0..1000 } ?: 0
+        bot.notifyAboutForgottenSuggestions(forcedByOwner = true, createdBeforeHours = threshold)
         val targetChat = bot.settings[Setting.EDITOR_CHAT_ID]
         bot.tgMessageSender.sendChatMessage(targetChat, TgTextOutput("Проверка на забытые посты завершена"))
     }

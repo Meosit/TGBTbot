@@ -53,6 +53,10 @@ class SuggestionStore {
         session.first(sqlQuery(SELECT_LAST_BY_CHAT_ID, chatId)) { row -> row.toUserSuggestion() }
     }
 
+    fun findByAuthorAndPostText(chatId: Long, postText: String): UserSuggestion? = usingDefault { session ->
+        session.first(sqlQuery(SELECT_BY_CHAT_ID_AND_TEXT, chatId, postText)) { row -> row.toUserSuggestion() }
+    }
+
     fun findByStatus(status: SuggestionStatus): List<UserSuggestion> = usingDefault { session ->
         session.list(sqlQuery(SELECT_BY_STATUS, status.toString())) { row -> row.toUserSuggestion() }
     }
@@ -134,6 +138,12 @@ class SuggestionStore {
         private const val SELECT_LAST_BY_CHAT_ID = """
             SELECT * FROM user_suggestions 
             WHERE author_chat_id = ? 
+            ORDER BY inserted_time DESC LIMIT 1
+        """
+
+        private const val SELECT_BY_CHAT_ID_AND_TEXT = """
+            SELECT * FROM user_suggestions 
+            WHERE author_chat_id = ? AND post_text = ?
             ORDER BY inserted_time DESC LIMIT 1
         """
 

@@ -14,6 +14,7 @@ import com.tgbt.suggestion.UserSuggestion
 import com.tgbt.suggestion.authorReference
 import com.tgbt.telegram.*
 import com.tgbt.telegram.output.TgTextOutput
+import org.slf4j.LoggerFactory
 import java.time.Instant
 
 class EditorUpdatePostCommand(private val suggestion: UserSuggestion): PostCommand() {
@@ -28,18 +29,22 @@ class EditorUpdatePostCommand(private val suggestion: UserSuggestion): PostComma
                 updatedSuggestion = suggestion.copy(imageId = null)
                 suggestionStore.update(updatedSuggestion, byAuthor = false)
                 tgMessageSender.sendChatMessage(chatId, TgTextOutput(noPicMessage), replyMessageId = message.id)
+                logger.info("Editor ${message.from?.simpleRef} remoted image for post '${suggestion.postText.trimToLength(20, "...")}' from ${suggestion.authorName}")
             }
             messageText.startsWith("/reject") -> {
                 when (val value = messageText.removePrefix("/reject").trim()) {
                     "" -> tgMessageSender.sendChatMessage(chatId, TgTextOutput("Зачем использовать эту команду без комментария?"), message.id)
                     else -> {
                         if (suggestion.editorChatId != null && suggestion.editorMessageId != null) {
-                            suggestionStore.removeByChatAndMessageId(suggestion.editorChatId, suggestion.editorMessageId, byAuthor = false)
-                            tgMessageSender.sendChatMessage(suggestion.authorChatId.toString(), TgTextOutput(UserMessages.postDiscardedWithCommentMessage
-                                .format(suggestion.postText.trimToLength(20, "..."), value.escapeMarkdown())))
-                            val keyboardJson = json.stringify(InlineKeyboardMarkup.serializer(),
-                                InlineKeyboardButton("❌ Удалён ${message.from?.simpleRef ?: "anon"} в ${Instant.now().simpleFormatTime()} ❌", EditorButtonAction.DELETED_DATA).toMarkup())
-                            tgMessageSender.editChatMessageKeyboard(suggestion.editorChatId.toString(), suggestion.editorMessageId, keyboardJson)
+                            val actuallyDeleted = suggestionStore.removeByChatAndMessageId(suggestion.editorChatId, suggestion.editorMessageId, byAuthor = false)
+                            if (actuallyDeleted) {
+                                tgMessageSender.sendChatMessage(suggestion.authorChatId.toString(), TgTextOutput(UserMessages.postDiscardedWithCommentMessage
+                                    .format(suggestion.postText.trimToLength(20, "..."), value.escapeMarkdown())))
+                                val keyboardJson = json.stringify(InlineKeyboardMarkup.serializer(),
+                                    InlineKeyboardButton("❌ Удалён ${message.from?.simpleRef ?: "anon"} в ${Instant.now().simpleFormatTime()} ❌", EditorButtonAction.DELETED_DATA).toMarkup())
+                                tgMessageSender.editChatMessageKeyboard(suggestion.editorChatId.toString(), suggestion.editorMessageId, keyboardJson)
+                                logger.info("Editor ${message.from?.simpleRef} rejected post '${suggestion.postText.trimToLength(20, "...")}' from ${suggestion.authorName} with comment '$value'")
+                            }
                         }
                     }
                 }
@@ -48,6 +53,7 @@ class EditorUpdatePostCommand(private val suggestion: UserSuggestion): PostComma
                 updatedSuggestion = suggestion.copy(imageId = messageText.trim())
                 suggestionStore.update(updatedSuggestion, byAuthor = false)
                 tgMessageSender.sendChatMessage(chatId, TgTextOutput(addPicMessage), replyMessageId = message.id)
+                logger.info("Editor ${message.from?.simpleRef} updated post image '${suggestion.postText.trimToLength(20, "...")}' from ${suggestion.authorName} with $messageText")
             }
         }
         if (updatedSuggestion != null) {
@@ -90,6 +96,7 @@ class EditorUpdatePostCommand(private val suggestion: UserSuggestion): PostComma
 
 
     companion object {
+        private val logger = LoggerFactory.getLogger("EditorUpdatePostCommand")
         private val noPicMessage = UserMessages.postPhotoDeletedMessage
         private val addPicMessage = UserMessages.photoUpdatedMessage
         private val noImagePlaceholder = "https://cdn.segmentnext.com/wp-content/themes/segmentnext/images/no-image-available.jpg"

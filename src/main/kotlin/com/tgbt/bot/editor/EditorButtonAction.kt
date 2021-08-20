@@ -68,13 +68,19 @@ object EditorButtonAction {
                 scheduleButtons(SCHEDULE_POST_PUBLICLY_DATA))
             CONFIRM_DELETE_ACTION_DATA -> {
                 if (suggestion?.editorChatId != null && suggestion.editorMessageId != null) {
-                    suggestionStore.removeByChatAndMessageId(suggestion.editorChatId, suggestion.editorMessageId, byAuthor = false)
-                    if (settings[Setting.SEND_DELETION_FEEDBACK].toBoolean()) {
-                        tgMessageSender.sendChatMessage(suggestion.authorChatId.toString(),
-                            TgTextOutput(UserMessages.postDiscardedMessage.format(suggestion.postText.trimToLength(20, "..."))))
+                    val actuallyDeleted = suggestionStore.removeByChatAndMessageId(suggestion.editorChatId, suggestion.editorMessageId, byAuthor = false)
+                    if (actuallyDeleted) {
+                        if (settings[Setting.SEND_DELETION_FEEDBACK].toBoolean()) {
+                            tgMessageSender.sendChatMessage(suggestion.authorChatId.toString(),
+                                TgTextOutput(UserMessages.postDiscardedMessage.format(suggestion.postText.trimToLength(20, "..."))))
+                        }
+                        sendDeletedConfirmation(message, callback, "❌ Удалён ${callback.userRef()} в ${Instant.now().simpleFormatTime()} ❌")
+                    } else {
+                        sendPostNotFound(message, callback)
                     }
+                } else {
+                    sendPostNotFound(message, callback)
                 }
-                sendDeletedConfirmation(message, callback, "❌ Удалён ${callback.userRef()} в ${Instant.now().simpleFormatTime()} ❌")
             }
             CONFIRM_POST_PUBLICLY_DATA -> sendSuggestion(suggestion, message, callback, anonymous = false)
             CONFIRM_POST_ANONYMOUSLY_DATA -> sendSuggestion(suggestion, message, callback, anonymous = true)

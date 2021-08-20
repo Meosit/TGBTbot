@@ -19,7 +19,9 @@ object UserMessages {
     val suggestionsDisabledErrorMessage = loadResourceAsString("user/error.disabled.md")
     val updateTimeoutErrorMessage = loadResourceAsString("user/error.timeout.md")
     val invalidPhotoErrorMessage = loadResourceAsString("user/error.invalid.photo.md")
+    val invalidPhotoNoAttachmentErrorMessage = loadResourceAsString("user/error.invalid.photo.attachment.md")
     val internalErrorMessage = loadResourceAsString("user/error.internal.md")
     val emptyErrorMessage = loadResourceAsString("user/error.invalid.empty.md")
     val sizeErrorMessage = loadResourceAsString("user/error.invalid.size.md")
+    val duplicateErrorMessage = loadResourceAsString("user/error.invalid.duplicate.md")
 }
