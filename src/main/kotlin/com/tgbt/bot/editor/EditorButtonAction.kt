@@ -3,20 +3,24 @@ package com.tgbt.bot.editor
 import com.tgbt.bot.BotContext
 import com.tgbt.bot.user.UserMessages
 import com.tgbt.misc.simpleFormatTime
-import com.tgbt.misc.trimToLength
 import com.tgbt.post.TgPreparedPost
 import com.tgbt.sendTelegramPost
 import com.tgbt.settings.Setting
 import com.tgbt.suggestion.SuggestionStatus
 import com.tgbt.suggestion.UserSuggestion
 import com.tgbt.suggestion.authorReference
+import com.tgbt.suggestion.postTextTeaser
 import com.tgbt.telegram.*
 import com.tgbt.telegram.output.TgTextOutput
+import org.slf4j.LoggerFactory
 import java.sql.Timestamp
 import java.time.Duration
 import java.time.Instant
 
 object EditorButtonAction {
+
+    private val logger = LoggerFactory.getLogger("EditorButtonAction")
+
     private val scheduleDelays = mapOf(
         Duration.ofMinutes(30) to "30 минут",
         Duration.ofHours(1) to "1 час",
@@ -111,15 +115,16 @@ object EditorButtonAction {
             if (actuallyDeleted) {
                 if (settings[Setting.SEND_DELETION_FEEDBACK].toBoolean()) {
                     val outputMessage = if (rejectComment != null) {
-                        UserMessages.postDiscardedWithCommentMessage.format(suggestion.postText.trimToLength(20, "..."), rejectComment)
+                        UserMessages.postDiscardedWithCommentMessage.format(suggestion.postTextTeaser(), rejectComment)
                     } else {
-                        UserMessages.postDiscardedMessage.format(suggestion.postText.trimToLength(20, "..."))
+                        UserMessages.postDiscardedMessage.format(suggestion.postTextTeaser())
                     }
                     tgMessageSender.sendChatMessage(suggestion.authorChatId.toString(), TgTextOutput(outputMessage))
                 }
                 val commentMark = if (rejectComment != null) " c \uD83D\uDCAC" else ""
                 sendDeletedConfirmation(message, callback,
                     "❌ Удалён ${callback.userRef()}$commentMark в ${Instant.now().simpleFormatTime()} ❌")
+                logger.info("Editor ${message.from?.simpleRef} rejected post '${suggestion.postTextTeaser()}' from ${suggestion.authorName} with comment '$rejectComment'")
             } else {
                 sendPostNotFound(message, callback)
             }
@@ -149,6 +154,7 @@ object EditorButtonAction {
         val buttonLabel = "⌛️ Отложен ${callback.userRef()} на ≈$scheduleLabel ⌛️"
         sendDeletedConfirmation(message, callback, buttonLabel,
             listOf(InlineKeyboardButton("$emoji Прямо сейчас", confirm), InlineKeyboardButton("↩️ Отмена действия", CANCEL_DATA)))
+        logger.info("Editor ${message.from?.simpleRef} scheduled post '${suggestion.postTextTeaser()}' from ${suggestion.authorName} to $scheduleLabel")
     }
 
     private fun String.validSchedulePayload(prefix: String) = this.startsWith(prefix)
@@ -177,8 +183,9 @@ object EditorButtonAction {
             sendDeletedConfirmation(message, callback, "$emoji Опубликован ${callback.userRef()} в ${Instant.now().simpleFormatTime()} $emoji")
             if (settings[Setting.SEND_PROMOTION_FEEDBACK].toBoolean()) {
                 tgMessageSender.sendChatMessage(suggestion.authorChatId.toString(),
-                    TgTextOutput(UserMessages.postPromotedMessage.format(suggestion.postText.trimToLength(20, "..."))))
+                    TgTextOutput(UserMessages.postPromotedMessage.format(suggestion.postTextTeaser())))
             }
+            logger.info("Editor ${message.from?.simpleRef} promoted post '${suggestion.postTextTeaser()}' from ${suggestion.authorName}")
         } else {
             sendPostNotFound(message, callback)
         }
@@ -198,6 +205,7 @@ object EditorButtonAction {
             "❔ Пост не найден ❔"
         }
         sendDeletedConfirmation(message, callback, buttonLabel)
+        logger.info("Editor ${message.from?.simpleRef} tried to do something with deleted post")
     }
 
     private fun CallbackQuery.userRef() =  from.simpleRef

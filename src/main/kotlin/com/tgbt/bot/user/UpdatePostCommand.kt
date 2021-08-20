@@ -12,10 +12,10 @@ import com.tgbt.bot.user.UserMessages.postPhotoDeletedMessage
 import com.tgbt.bot.user.UserMessages.postUpdatedMessage
 import com.tgbt.bot.user.UserMessages.updateTimeoutErrorMessage
 import com.tgbt.misc.isImageUrl
-import com.tgbt.misc.trimToLength
 import com.tgbt.settings.Setting
 import com.tgbt.suggestion.SuggestionStatus
 import com.tgbt.suggestion.UserSuggestion
+import com.tgbt.suggestion.postTextTeaser
 import com.tgbt.telegram.imageId
 import com.tgbt.telegram.output.TgTextOutput
 import org.slf4j.LoggerFactory
@@ -39,7 +39,7 @@ class UpdatePostCommand(private val suggestion: UserSuggestion) : PostCommand() 
                 suggestionStore.update(updatedPost, byAuthor = true)
                 tgMessageSender.sendChatMessage(chatId, TgTextOutput(updateTimeoutErrorMessage
                     .format(editTimeMinutes, max(0, suggestionDelayMinutes - diffMinutes))))
-                logger.info("User ${suggestion.authorName} tried to update post after timeout '${updatedPost.postText.trimToLength(20, "...")}'")
+                logger.info("User ${suggestion.authorName} tried to update post after timeout '${updatedPost.postTextTeaser()}'")
             }
             isEdit && messageText.isBlank() ->
                 tgMessageSender.sendChatMessage(chatId, TgTextOutput(emptyErrorMessage))
@@ -48,7 +48,7 @@ class UpdatePostCommand(private val suggestion: UserSuggestion) : PostCommand() 
                     val updatedPost = suggestion.copy(postText = messageText, imageId = message.imageId)
                     suggestionStore.update(updatedPost, byAuthor = true)
                     tgMessageSender.sendChatMessage(chatId, TgTextOutput(postUpdatedMessage))
-                    logger.info("User ${suggestion.authorName} updated post text to '${updatedPost.postText.trimToLength(20, "...")}'")
+                    logger.info("User ${suggestion.authorName} updated post text to '${updatedPost.postTextTeaser()}'")
                 } else {
                     tgMessageSender.sendChatMessage(chatId, TgTextOutput(emptyErrorMessage))
                 }
@@ -60,29 +60,29 @@ class UpdatePostCommand(private val suggestion: UserSuggestion) : PostCommand() 
                     byAuthor = true
                 )
                 tgMessageSender.sendChatMessage(chatId, TgTextOutput(postDeletedMessage))
-                logger.info("User ${suggestion.authorName} deleted post '${suggestion.postText.trimToLength(20, "...")}'")
+                logger.info("User ${suggestion.authorName} deleted post '${suggestion.postTextTeaser()}'")
             }
             !isEdit && messageText.startsWith("/nopic") -> {
                 suggestionStore.update(suggestion.copy(imageId = null), byAuthor = true)
                 tgMessageSender.sendChatMessage(chatId, TgTextOutput(postPhotoDeletedMessage))
-                logger.info("User ${suggestion.authorName} removed pic for post: '${suggestion.postText.trimToLength(20, "...")}'")
+                logger.info("User ${suggestion.authorName} removed pic for post: '${suggestion.postTextTeaser()}'")
             }
             !isEdit && message.imageId != null -> {
                 if (suggestion.postText.length >= 3500) {
                     tgMessageSender.sendChatMessage(chatId, TgTextOutput(invalidPhotoNoAttachmentErrorMessage))
-                    logger.info("User ${suggestion.authorName} tried to add photo by attachment while post is too long, post: '${suggestion.postText.trimToLength(20, "...")}'")
+                    logger.info("User ${suggestion.authorName} tried to add photo by attachment while post is too long, post: '${suggestion.postTextTeaser()}'")
                 } else {
                     val updatedPost = suggestion.copy(imageId = message.imageId)
                     suggestionStore.update(updatedPost, byAuthor = true)
                     tgMessageSender.sendChatMessage(chatId, TgTextOutput(photoUpdatedAttachmentMessage))
-                    logger.info("User ${suggestion.authorName} updated a pic BY ATTACHMENT for post: '${suggestion.postText.trimToLength(20, "...")}'")
+                    logger.info("User ${suggestion.authorName} updated a pic BY ATTACHMENT for post: '${suggestion.postTextTeaser()}'")
                 }
             }
             !isEdit && messageText.trim().isImageUrl() -> {
                 val updatedPost = suggestion.copy(imageId = messageText.trim())
                 suggestionStore.update(updatedPost, byAuthor = true)
                 tgMessageSender.sendChatMessage(chatId, TgTextOutput(photoUpdatedMessage))
-                logger.info("User ${suggestion.authorName} updated a pic BY LINK for post: '${suggestion.postText.trimToLength(20, "...")}'")
+                logger.info("User ${suggestion.authorName} updated a pic BY LINK for post: '${suggestion.postTextTeaser()}'")
             }
             !isEdit && (message.imageId == null || !messageText.trim().isImageUrl()) -> {
                 tgMessageSender.sendChatMessage(chatId, TgTextOutput(invalidPhotoErrorMessage))

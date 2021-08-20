@@ -5,7 +5,7 @@ import com.tgbt.bot.MessageContext
 import com.tgbt.telegram.output.TgTextOutput
 
 object SuggestionsCleanCommand: BotCommand {
-    override val command = "/cleanoldsuggestions "
+    override val command = "/clean_old_suggestions "
 
     override suspend fun MessageContext.handle(): Unit = with(bot) {
         when (val value = messageText.removePrefix(command)) {

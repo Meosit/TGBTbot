@@ -1,5 +1,6 @@
 package com.tgbt.suggestion
 
+import com.tgbt.misc.trimToLength
 import java.sql.Timestamp
 import java.time.Instant
 
@@ -19,3 +20,6 @@ data class UserSuggestion(
 
 fun UserSuggestion.authorReference(anonymous: Boolean) =
     "предложено${if (anonymous) "" else " $authorName"} через @tgbtbot"
+
+fun UserSuggestion.postTextTeaser() =
+    postText.replace('\n', ' ').trimToLength(10, "…")

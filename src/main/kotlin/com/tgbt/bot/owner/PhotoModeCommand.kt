@@ -6,7 +6,7 @@ import com.tgbt.settings.Setting
 import com.tgbt.telegram.output.TgTextOutput
 
 object PhotoModeCommand : BotCommand {
-    override val command = "/photomode "
+    override val command = "/photo_mode "
 
     override suspend fun MessageContext.handle(): Unit = with(bot) {
         when (val value = messageText.removePrefix(command)) {

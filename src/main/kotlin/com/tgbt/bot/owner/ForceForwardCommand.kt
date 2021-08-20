@@ -6,7 +6,7 @@ import com.tgbt.forwardVkPosts
 import com.tgbt.telegram.output.TgTextOutput
 
 object ForceForwardCommand : BotCommand {
-    override val command = "/forceforward"
+    override val command = "/force_forward"
 
     override suspend fun MessageContext.handle(): Unit = with(bot) {
         forwardVkPosts(forcedByOwner = true)

@@ -11,6 +11,9 @@ enum class Setting {
     USE_PHOTO_MODE,
     FOOTER_MD,
     SEND_STATUS,
+    // VK freeze notifications
+    VK_FREEZE_TIMEOUT_MINUTES,
+    VK_FREEZE_MENTIONS,
     // suggestions
     SUGGESTIONS_ENABLED,
     EDITOR_CHAT_ID,

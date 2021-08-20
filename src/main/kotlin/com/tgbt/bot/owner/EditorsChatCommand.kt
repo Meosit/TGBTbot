@@ -7,7 +7,7 @@ import com.tgbt.telegram.output.TgTextOutput
 
 
 object EditorsChatCommand: BotCommand {
-    override val command = "/editorschat "
+    override val command = "/editors_chat "
 
     override suspend fun MessageContext.handle(): Unit = with(bot) {
         when (val value = messageText.removePrefix(command)) {

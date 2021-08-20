@@ -6,7 +6,7 @@ import com.tgbt.settings.Setting
 import com.tgbt.telegram.output.TgTextOutput
 
 object SuggestionsDeletionCommand: BotCommand {
-    override val command = "/suggestionsdeletion "
+    override val command = "/suggestions_deletion "
 
     override suspend fun MessageContext.handle(): Unit = with(bot) {
         when (val value = messageText.removePrefix(command)) {

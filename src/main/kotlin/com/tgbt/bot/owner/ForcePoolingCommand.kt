@@ -6,7 +6,7 @@ import com.tgbt.forwardSuggestions
 import com.tgbt.telegram.output.TgTextOutput
 
 object ForcePoolingCommand : BotCommand {
-    override val command = "/forcepoolsuggestions"
+    override val command = "/force_pool_suggestions"
 
     override suspend fun MessageContext.handle(): Unit = with(bot) {
         forwardSuggestions(forcedByOwner = true)

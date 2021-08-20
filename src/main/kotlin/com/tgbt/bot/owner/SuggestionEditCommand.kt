@@ -7,7 +7,7 @@ import com.tgbt.telegram.output.TgTextOutput
 
 
 object SuggestionEditCommand : BotCommand {
-    override val command = "/suggestionedit "
+    override val command = "/suggestion_edit "
 
     override suspend fun MessageContext.handle(): Unit = with(bot) {
         when (val value = messageText.removePrefix(command)) {

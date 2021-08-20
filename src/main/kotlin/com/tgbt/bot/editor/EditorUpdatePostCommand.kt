@@ -12,6 +12,7 @@ import com.tgbt.post.TgPreparedPost
 import com.tgbt.settings.Setting
 import com.tgbt.suggestion.UserSuggestion
 import com.tgbt.suggestion.authorReference
+import com.tgbt.suggestion.postTextTeaser
 import com.tgbt.telegram.*
 import com.tgbt.telegram.output.TgTextOutput
 import org.slf4j.LoggerFactory
@@ -29,7 +30,7 @@ class EditorUpdatePostCommand(private val suggestion: UserSuggestion): PostComma
                 updatedSuggestion = suggestion.copy(imageId = null)
                 suggestionStore.update(updatedSuggestion, byAuthor = false)
                 tgMessageSender.sendChatMessage(chatId, TgTextOutput(noPicMessage), replyMessageId = message.id)
-                logger.info("Editor ${message.from?.simpleRef} remoted image for post '${suggestion.postText.trimToLength(20, "...")}' from ${suggestion.authorName}")
+                logger.info("Editor ${message.from?.simpleRef} remoted image for post '${suggestion.postTextTeaser()}' from ${suggestion.authorName}")
             }
             messageText.startsWith("/reject") -> {
                 when (val value = messageText.removePrefix("/reject").trim()) {
@@ -39,11 +40,11 @@ class EditorUpdatePostCommand(private val suggestion: UserSuggestion): PostComma
                             val actuallyDeleted = suggestionStore.removeByChatAndMessageId(suggestion.editorChatId, suggestion.editorMessageId, byAuthor = false)
                             if (actuallyDeleted) {
                                 tgMessageSender.sendChatMessage(suggestion.authorChatId.toString(), TgTextOutput(UserMessages.postDiscardedWithCommentMessage
-                                    .format(suggestion.postText.trimToLength(20, "..."), value.escapeMarkdown())))
+                                    .format(suggestion.postTextTeaser(), value.escapeMarkdown())))
                                 val keyboardJson = json.stringify(InlineKeyboardMarkup.serializer(),
                                     InlineKeyboardButton("❌ Удалён ${message.from?.simpleRef ?: "anon"} c \uD83D\uDCAC в ${Instant.now().simpleFormatTime()} ❌", EditorButtonAction.DELETED_DATA).toMarkup())
                                 tgMessageSender.editChatMessageKeyboard(suggestion.editorChatId.toString(), suggestion.editorMessageId, keyboardJson)
-                                logger.info("Editor ${message.from?.simpleRef} rejected post '${suggestion.postText.trimToLength(20, "...")}' from ${suggestion.authorName} with comment '$value'")
+                                logger.info("Editor ${message.from?.simpleRef} rejected post '${suggestion.postTextTeaser()}' from ${suggestion.authorName} with comment '$value'")
                             }
                         }
                     }
@@ -53,7 +54,7 @@ class EditorUpdatePostCommand(private val suggestion: UserSuggestion): PostComma
                 updatedSuggestion = suggestion.copy(imageId = messageText.trim())
                 suggestionStore.update(updatedSuggestion, byAuthor = false)
                 tgMessageSender.sendChatMessage(chatId, TgTextOutput(addPicMessage), replyMessageId = message.id)
-                logger.info("Editor ${message.from?.simpleRef} updated post image '${suggestion.postText.trimToLength(20, "...")}' from ${suggestion.authorName} with $messageText")
+                logger.info("Editor ${message.from?.simpleRef} updated post image '${suggestion.postTextTeaser()}' from ${suggestion.authorName} with $messageText")
             }
         }
         if (updatedSuggestion != null) {

@@ -5,9 +5,9 @@ import com.tgbt.bot.user.UserMessages.duplicateErrorMessage
 import com.tgbt.bot.user.UserMessages.emptyErrorMessage
 import com.tgbt.bot.user.UserMessages.sizeErrorMessage
 import com.tgbt.misc.loadResourceAsString
-import com.tgbt.misc.trimToLength
 import com.tgbt.settings.Setting
 import com.tgbt.suggestion.UserSuggestion
+import com.tgbt.suggestion.postTextTeaser
 import com.tgbt.telegram.imageId
 import com.tgbt.telegram.output.TgTextOutput
 import com.tgbt.telegram.verboseUserName
@@ -33,13 +33,13 @@ object AddPostCommand: PostCommand() {
                 )
                 if (bot.suggestionStore.findByAuthorAndPostText(message.chat.id, suggestion.postText) != null) {
                     bot.tgMessageSender.sendChatMessage(chatId, TgTextOutput(duplicateErrorMessage))
-                    logger.info("User ${message.verboseUserName} tried to add duplicate post: '${suggestion.postText.trimToLength(20, "...")}'")
+                    logger.info("User ${message.verboseUserName} tried to add duplicate post: '${suggestion.postTextTeaser()}'")
                 } else {
                     if (bot.suggestionStore.insert(suggestion)) {
                         val editTimeMinutes = bot.settings[Setting.USER_EDIT_TIME_MINUTES].toLong()
                         val suggestionDelayMinutes = bot.settings[Setting.USER_SUGGESTION_DELAY_MINUTES].toLong()
                         bot.tgMessageSender.sendChatMessage(chatId, TgTextOutput(successMessage.format(editTimeMinutes, suggestionDelayMinutes)))
-                        logger.info("NEW SUGGESTION from ${message.verboseUserName}: '${suggestion.postText.trimToLength(20, "...")}'")
+                        logger.info("NEW SUGGESTION from ${message.verboseUserName}: '${suggestion.postTextTeaser()}'")
                     }
                 }
             }

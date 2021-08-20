@@ -17,6 +17,7 @@ import com.tgbt.settings.Settings
 import com.tgbt.suggestion.SuggestionStatus
 import com.tgbt.suggestion.SuggestionStore
 import com.tgbt.suggestion.authorReference
+import com.tgbt.suggestion.postTextTeaser
 import com.tgbt.telegram.*
 import com.tgbt.telegram.output.TgImageOutput
 import com.tgbt.telegram.output.TgTextOutput
@@ -184,6 +185,9 @@ suspend fun BotContext.forwardVkPosts(forcedByOwner: Boolean = false) {
         val footerMd = settings[FOOTER_MD]
         val sendStatus = settings[SEND_STATUS].toBoolean()
         val targetChannel = settings[TARGET_CHANNEL]
+        val vkFreezeTimeout = settings[VK_FREEZE_TIMEOUT_MINUTES].toInt()
+        val vkFreezeMentions = settings[VK_FREEZE_MENTIONS]
+        val editorsChatId = settings[EDITOR_CHAT_ID]
 
         val stats = mutableMapOf<String, Int>()
         val postsToForward = doNotThrow("Failed to load or parse VK posts") {
@@ -194,6 +198,9 @@ suspend fun BotContext.forwardVkPosts(forcedByOwner: Boolean = false) {
                 .also {
                     stats["total"] = it.size
                     logger.info("Loaded ${it.size} posts in total")
+                    val now = System.currentTimeMillis() / 1000
+                    val lastPost = it.maxBy { post -> post.unixTime }?.unixTime ?: now
+                    stats["freeze"] = TimeUnit.SECONDS.toMinutes(now - lastPost).toInt()
                 }
                 .filter { condition.evaluate(it.stats) }
                 .also {
@@ -233,10 +240,21 @@ suspend fun BotContext.forwardVkPosts(forcedByOwner: Boolean = false) {
             doNotThrow("Failed to send stats to TG") {
                 val message = "*FORWARDING*\n" +
                         "\nRight now forwarded ${forwarded.size} posts from VK to Telegram:\n" +
+                        "${stats["freeze"]} minutes since last VK post\n" +
                         "${stats["total"]} loaded in total\n" +
                         "${stats["condition"]} after filtering by condition\n" +
                         "Posts:\n> " + forwarded.joinToString("\n> ")
                 logger.info(message)
+                ownerIds.forEach { tgMessageSender.sendChatMessage(it, TgTextOutput(message), disableLinkPreview = true) }
+            }
+        }
+        doNotThrow("Failed to send freeze notification") {
+            val freeze = stats["freeze"] ?: 0
+            val checkPeriod = settings[CHECK_PERIOD_MINUTES].toInt()
+            if (freeze in vkFreezeTimeout..(vkFreezeTimeout + checkPeriod * 5)) {
+                logger.info("More than $freeze minutes since last VK post, alerting...")
+                val message = "*Уже $freeze минут ни одного нового поста ВК*\n$vkFreezeMentions"
+                tgMessageSender.sendChatMessage(editorsChatId, TgTextOutput(message), disableLinkPreview = true)
                 ownerIds.forEach { tgMessageSender.sendChatMessage(it, TgTextOutput(message), disableLinkPreview = true) }
             }
         }
@@ -363,9 +381,9 @@ private suspend fun BotContext.postScheduledSuggestions(footerMd: String): Int {
             scheduled++
             if (settings[SEND_PROMOTION_FEEDBACK].toBoolean()) {
                 tgMessageSender.sendChatMessage(suggestion.authorChatId.toString(),
-                    TgTextOutput(UserMessages.postPromotedMessage.format(suggestion.postText.trimToLength(20, "..."))))
+                    TgTextOutput(UserMessages.postPromotedMessage.format(suggestion.postTextTeaser())))
             }
-
+            logger.info("Posted scheduled post '${suggestion.postTextTeaser()}' from ${suggestion.authorName}")
         }
     }
     return scheduled
@@ -459,4 +477,6 @@ private fun insertDefaultSettings(settings: Settings, json: Json) = with(setting
     putIfAbsent(SEND_PROMOTION_FEEDBACK, "true")
     putIfAbsent(SEND_DELETION_FEEDBACK, "true")
     putIfAbsent(SEND_SUGGESTION_STATUS, "true")
+    putIfAbsent(VK_FREEZE_TIMEOUT_MINUTES, "90")
+    putIfAbsent(VK_FREEZE_MENTIONS, "@grungeme @lifeiseight")
 }

@@ -5,17 +5,16 @@ import com.tgbt.bot.MessageContext
 import com.tgbt.settings.Setting
 import com.tgbt.telegram.output.TgTextOutput
 
-
-object SuggestionPoolingCommand : BotCommand {
-    override val command = "/suggestion_pooling "
+object VkFreezeTimeoutCommand : BotCommand {
+    override val command = "/vk_freeze_timeout "
 
     override suspend fun MessageContext.handle(): Unit = with(bot) {
         when (val value = messageText.removePrefix(command)) {
             "" -> tgMessageSender.sendChatMessage(chatId, TgTextOutput("Argument expected"), message.id)
             else -> {
                 val markdownText = if (value.toIntOrNull() != null) {
-                    settings[Setting.SUGGESTION_POLLING_DELAY_MINUTES] = value
-                    "New suggestions would be checked every $value minutes"
+                    settings[Setting.VK_FREEZE_TIMEOUT_MINUTES] = value
+                    "Now editors will be notified after $value minutes of VK freeze (no posts)"
                 } else {
                     "Integer value expected, got '$value'"
                 }
