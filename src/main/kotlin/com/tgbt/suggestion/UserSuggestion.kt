@@ -22,4 +22,4 @@ fun UserSuggestion.authorReference(anonymous: Boolean) =
     "предложено${if (anonymous) "" else " $authorName"} через @tgbtbot"
 
 fun UserSuggestion.postTextTeaser() =
-    postText.replace('\n', ' ').trimToLength(10, "…")
+    postText.trimToLength(20, "…").replace('\n', ' ')

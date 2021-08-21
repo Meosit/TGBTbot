@@ -8,6 +8,7 @@ import com.tgbt.grammar.*
 import com.tgbt.misc.escapeMarkdown
 import com.tgbt.misc.isImageUrl
 import com.tgbt.misc.trimToLength
+import com.tgbt.post.Post
 import com.tgbt.post.PostStore
 import com.tgbt.post.TgPreparedPost
 import com.tgbt.post.toPost
@@ -190,6 +191,7 @@ suspend fun BotContext.forwardVkPosts(forcedByOwner: Boolean = false) {
         val editorsChatId = settings[EDITOR_CHAT_ID]
 
         val stats = mutableMapOf<String, Int>()
+        var lastPost: Post? = null
         val postsToForward = doNotThrow("Failed to load or parse VK posts") {
             vkPostLoader
                 .load(postsCount, communityId)
@@ -199,8 +201,8 @@ suspend fun BotContext.forwardVkPosts(forcedByOwner: Boolean = false) {
                     stats["total"] = it.size
                     logger.info("Loaded ${it.size} posts in total")
                     val now = System.currentTimeMillis() / 1000
-                    val lastPost = it.maxBy { post -> post.unixTime }?.unixTime ?: now
-                    stats["freeze"] = TimeUnit.SECONDS.toMinutes(now - lastPost).toInt()
+                    lastPost = it.maxBy { post -> if (post.text.contains("#БТnews")) 0 else post.unixTime }
+                    stats["freeze"] = TimeUnit.SECONDS.toMinutes(now - (lastPost?.unixTime ?: 0)).toInt()
                 }
                 .filter { condition.evaluate(it.stats) }
                 .also {
@@ -253,7 +255,9 @@ suspend fun BotContext.forwardVkPosts(forcedByOwner: Boolean = false) {
             val checkPeriod = settings[CHECK_PERIOD_MINUTES].toInt()
             if (freeze in vkFreezeTimeout..(vkFreezeTimeout + checkPeriod * 5)) {
                 logger.info("More than $freeze minutes since last VK post, alerting...")
-                val message = "*Уже $freeze минут ни одного нового поста ВК*\n$vkFreezeMentions"
+                val message = "*Уже $freeze минут ни одного нового поста ВК (кроме БТnews)*\n" +
+                        "Последний пост: '${lastPost?.text?.trimToLength(20, "…")?.replace('\n', ' ')}'\n" +
+                        vkFreezeMentions
                 tgMessageSender.sendChatMessage(editorsChatId, TgTextOutput(message), disableLinkPreview = true)
                 ownerIds.forEach { tgMessageSender.sendChatMessage(it, TgTextOutput(message), disableLinkPreview = true) }
             }
