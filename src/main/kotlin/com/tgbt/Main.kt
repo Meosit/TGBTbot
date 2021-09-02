@@ -7,6 +7,7 @@ import com.tgbt.bot.user.UserMessages
 import com.tgbt.grammar.*
 import com.tgbt.misc.escapeMarkdown
 import com.tgbt.misc.isImageUrl
+import com.tgbt.misc.simpleFormatTime
 import com.tgbt.misc.trimToLength
 import com.tgbt.post.Post
 import com.tgbt.post.PostStore
@@ -191,18 +192,23 @@ suspend fun BotContext.forwardVkPosts(forcedByOwner: Boolean = false) {
         val editorsChatId = settings[EDITOR_CHAT_ID]
 
         val stats = mutableMapOf<String, Int>()
-        var lastPost: Post? = null
+        val lastPosts: MutableList<Post> = mutableListOf()
         val postsToForward = doNotThrow("Failed to load or parse VK posts") {
             vkPostLoader
                 .load(postsCount, communityId)
                 .filter { it.isPinned + it.markedAsAds == 0 }
                 .map(VkPost::toPost)
-                .also {
-                    stats["total"] = it.size
-                    logger.info("Loaded ${it.size} posts in total")
+                .also { posts ->
+                    stats["total"] = posts.size
+                    logger.info("Loaded ${posts.size} posts in total")
                     val now = System.currentTimeMillis() / 1000
-                    lastPost = it.maxBy { post -> if (post.text.contains("#БТnews")) 0 else post.unixTime }
-                    stats["freeze"] = TimeUnit.SECONDS.toMinutes(now - (lastPost?.unixTime ?: 0)).toInt()
+                    // expect them to be already sorted by time descending
+                    posts
+                        .take(5)
+                        .filterNot { it.text.contains("#БТnews") }
+                        .take(3)
+                        .forEach { post -> lastPosts.add(post) }
+                    stats["freeze"] = TimeUnit.SECONDS.toMinutes(now - (lastPosts.firstOrNull()?.unixTime ?: 0)).toInt()
                 }
                 .filter { condition.evaluate(it.stats) }
                 .also {
@@ -255,9 +261,15 @@ suspend fun BotContext.forwardVkPosts(forcedByOwner: Boolean = false) {
             val checkPeriod = settings[CHECK_PERIOD_MINUTES].toInt()
             if (freeze in vkFreezeTimeout..(vkFreezeTimeout + checkPeriod * 5)) {
                 logger.info("More than $freeze minutes since last VK post, alerting...")
-                val message = "*Уже $freeze минут ни одного нового поста ВК (кроме БТnews)*\n" +
-                        "Последний пост: '${lastPost?.text?.trimToLength(20, "…")?.replace('\n', ' ')}'\n" +
-                        vkFreezeMentions
+                val message = lastPosts.asReversed().joinToString(
+                    prefix = "*Уже $freeze минут ни одного нового поста ВК (кроме БТnews)*. Последние посты по МСК:\n",
+                    separator = "\n",
+                    postfix = "\n$vkFreezeMentions"
+                ) {
+                    val time = Instant.ofEpochSecond(it.unixTime).simpleFormatTime()
+                    val preview = it.text.trimToLength(20, "…").replace('\n', ' ')
+                    "- $time: '$preview'"
+                }
                 tgMessageSender.sendChatMessage(editorsChatId, TgTextOutput(message), disableLinkPreview = true)
                 ownerIds.forEach { tgMessageSender.sendChatMessage(it, TgTextOutput(message), disableLinkPreview = true) }
             }
