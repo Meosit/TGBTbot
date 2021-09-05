@@ -260,9 +260,12 @@ suspend fun BotContext.forwardVkPosts(forcedByOwner: Boolean = false) {
             val missedSlots = VkScheduleCommand.findPastSlots(settings, min(slotError, freeze.toLong() - 1) until freeze)
             if (missedSlots.isNotEmpty() && freeze < vkFreezeTimeout) {
                 val slot = missedSlots.last()
-                val message = "*Слот ${slot.time.simpleFormatTime()} от ${slot.user.escapeMarkdown()} не найден*"
-                tgMessageSender.sendChatMessage(editorsChatId, TgTextOutput(message), disableLinkPreview = true)
-                ownerIds.forEach { tgMessageSender.sendChatMessage(it, TgTextOutput(message), disableLinkPreview = true) }
+                val lastPostTime = lastPosts.lastOrNull()?.let { Instant.ofEpochSecond(it.unixTime).atZone(moscowZoneId).toLocalTime() } ?: slot.time
+                if (Duration.between(lastPostTime, slot.time).toMinutes() !in -slotError..slotError) {
+                    val message = "*Пост на слот ${slot.time.simpleFormatTime()} от ${slot.user.escapeMarkdown()} не найден, с последнего поста (${lastPostTime.simpleFormatTime()}) прошло $freeze минут*"
+                    tgMessageSender.sendChatMessage(editorsChatId, TgTextOutput(message), disableLinkPreview = true)
+                    ownerIds.forEach { tgMessageSender.sendChatMessage(it, TgTextOutput(message), disableLinkPreview = true) }
+                }
             }
 
             val checkPeriod = settings[CHECK_PERIOD_MINUTES].toInt()
