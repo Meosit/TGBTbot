@@ -3,12 +3,10 @@ package com.tgbt
 import com.tgbt.bot.BotContext
 import com.tgbt.bot.MessageContext
 import com.tgbt.bot.editor.EditorButtonAction
+import com.tgbt.bot.owner.VkScheduleCommand
 import com.tgbt.bot.user.UserMessages
 import com.tgbt.grammar.*
-import com.tgbt.misc.escapeMarkdown
-import com.tgbt.misc.isImageUrl
-import com.tgbt.misc.simpleFormatTime
-import com.tgbt.misc.trimToLength
+import com.tgbt.misc.*
 import com.tgbt.post.Post
 import com.tgbt.post.PostStore
 import com.tgbt.post.TgPreparedPost
@@ -52,9 +50,9 @@ import java.net.URI
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalTime
-import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 import java.util.concurrent.TimeUnit
+import kotlin.math.min
 
 private val logger = LoggerFactory.getLogger("MainKt")
 
@@ -208,7 +206,7 @@ suspend fun BotContext.forwardVkPosts(forcedByOwner: Boolean = false) {
                         .filterNot { it.text.contains("#БТnews") }
                         .take(3)
                         .forEach { post -> lastPosts.add(post) }
-                    stats["freeze"] = TimeUnit.SECONDS.toMinutes(now - (lastPosts.firstOrNull()?.unixTime ?: 0)).toInt()
+                    stats["freeze"] = TimeUnit.SECONDS.toMinutes(now - (lastPosts.firstOrNull()?.unixTime ?: now)).toInt()
                 }
                 .filter { condition.evaluate(it.stats) }
                 .also {
@@ -258,13 +256,23 @@ suspend fun BotContext.forwardVkPosts(forcedByOwner: Boolean = false) {
         }
         doNotThrow("Failed to send freeze notification") {
             val freeze = stats["freeze"] ?: 0
+            val slotError = settings[VK_SCHEDULE_ERROR_MINUTES].toLong()
+            val missedSlots = VkScheduleCommand.findPastSlots(settings, min(slotError, freeze.toLong() - 1) until freeze)
+            if (missedSlots.isNotEmpty() && freeze < vkFreezeTimeout) {
+                val slot = missedSlots.last()
+                val message = "*Слот ${slot.time.simpleFormatTime()} от ${slot.user.escapeMarkdown()} не найден*"
+                tgMessageSender.sendChatMessage(editorsChatId, TgTextOutput(message), disableLinkPreview = true)
+                ownerIds.forEach { tgMessageSender.sendChatMessage(it, TgTextOutput(message), disableLinkPreview = true) }
+            }
+
             val checkPeriod = settings[CHECK_PERIOD_MINUTES].toInt()
             if (freeze in vkFreezeTimeout..(vkFreezeTimeout + checkPeriod * 5)) {
                 logger.info("More than $freeze minutes since last VK post, alerting...")
+                val missedSlotsPart = missedSlots.joinToString(separator = "\n") { "- ${it.time.simpleFormatTime()}: *Слот пропущен ${it.user.escapeMarkdown()}*" }
                 val message = lastPosts.asReversed().joinToString(
                     prefix = "*Уже $freeze минут ни одного нового поста ВК (кроме БТnews)*. Последние посты по МСК:\n",
                     separator = "\n",
-                    postfix = "\n$vkFreezeMentions"
+                    postfix = "\n$missedSlotsPart\n$vkFreezeMentions"
                 ) {
                     val time = Instant.ofEpochSecond(it.unixTime).simpleFormatTime()
                     val preview = it.text.trimToLength(20, "…").replace('\n', ' ')
@@ -273,6 +281,7 @@ suspend fun BotContext.forwardVkPosts(forcedByOwner: Boolean = false) {
                 tgMessageSender.sendChatMessage(editorsChatId, TgTextOutput(message), disableLinkPreview = true)
                 ownerIds.forEach { tgMessageSender.sendChatMessage(it, TgTextOutput(message), disableLinkPreview = true) }
             }
+
         }
 
         doNotThrow("Failed to clean up old posts from TG") {
@@ -348,7 +357,7 @@ suspend fun BotContext.forwardSuggestions(forcedByOwner: Boolean = false) {
 suspend fun BotContext.notifyAboutForgottenSuggestions(forcedByOwner: Boolean = false, createdBeforeHours: Int = 0): Int {
     val start = LocalTime.of(0, 0, 0, 0)
     val end = LocalTime.of(0, settings[SUGGESTION_POLLING_DELAY_MINUTES].toInt(), 0, 0)
-    val now = LocalTime.from(Instant.now().atZone(ZoneId.of("Europe/Moscow")))
+    val now = LocalTime.from(Instant.now().atZone(moscowZoneId))
     var forgotten = 0
     if (forcedByOwner || (now.isAfter(start) && now.isBefore(end))) {
         if (!forcedByOwner) {
@@ -494,5 +503,7 @@ private fun insertDefaultSettings(settings: Settings, json: Json) = with(setting
     putIfAbsent(SEND_DELETION_FEEDBACK, "true")
     putIfAbsent(SEND_SUGGESTION_STATUS, "true")
     putIfAbsent(VK_FREEZE_TIMEOUT_MINUTES, "90")
-    putIfAbsent(VK_FREEZE_MENTIONS, "@grungeme @lifeiseight")
+    putIfAbsent(VK_FREEZE_MENTIONS, "anon")
+    putIfAbsent(VK_SCHEDULE, "5:00 Улиточка")
+    putIfAbsent(VK_SCHEDULE_ERROR_MINUTES, "5")
 }

@@ -118,7 +118,9 @@ data class MessageContext(
             SuggestionsPromotionCommand,
             VkIdCommand,
             VkFreezeMentionsCommand,
-            VkFreezeTimeoutCommand
+            VkFreezeTimeoutCommand,
+            VkScheduleCommand,
+            VkScheduleErrorCommand
         )
 
         private val USER_COMMANDS: List<BotCommand> = listOf(

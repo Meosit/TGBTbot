@@ -14,6 +14,8 @@ enum class Setting {
     // VK freeze notifications
     VK_FREEZE_TIMEOUT_MINUTES,
     VK_FREEZE_MENTIONS,
+    VK_SCHEDULE,
+    VK_SCHEDULE_ERROR_MINUTES,
     // suggestions
     SUGGESTIONS_ENABLED,
     EDITOR_CHAT_ID,

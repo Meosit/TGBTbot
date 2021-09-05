@@ -5,6 +5,7 @@ import java.io.InputStreamReader
 import java.net.URI
 import java.net.URISyntaxException
 import java.time.Instant
+import java.time.LocalTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.*
@@ -43,9 +44,15 @@ fun String.isImageUrl(): Boolean {
     }
 }
 
+val moscowZoneId = ZoneId.of("Europe/Moscow")
+
 fun Instant.simpleFormatTime(): String =
     DateTimeFormatter.ofPattern("HH:mm, EE").withLocale(Locale("ru"))
-        .format(this.atZone(ZoneId.of("Europe/Moscow")))
+        .format(this.atZone(moscowZoneId))
+
+fun LocalTime.simpleFormatTime(): String =
+    DateTimeFormatter.ofPattern("HH:mm").withLocale(Locale("ru"))
+        .format(this)
 
 fun loadResourceAsString(resourceBaseName: String): String = BotContext::class.java.classLoader
     .getResourceAsStream(resourceBaseName)
