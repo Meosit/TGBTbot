@@ -22,7 +22,7 @@ private class VkScheduleParseException(val index: Int, val row: String): Runtime
 object VkScheduleCommand : BotCommand {
 
     private val logger = LoggerFactory.getLogger("VkScheduleCommand")
-    override val command = "/vk_schedule"
+    override val command = "/vk_schedule\n"
     private val scheduleItemRegex = """^(\d?\d[:.]\d\d)\s(.+)$""".toRegex()
     private val timePattern = DateTimeFormatter.ofPattern("H:mm")
 
