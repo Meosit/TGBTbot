@@ -262,7 +262,7 @@ suspend fun BotContext.forwardVkPosts(forcedByOwner: Boolean = false) {
                 val slot = missedSlots.last()
                 val lastPostTime = lastPosts.firstOrNull()?.let { Instant.ofEpochSecond(it.unixTime).atZone(moscowZoneId).toLocalTime() } ?: slot.time
                 if (Duration.between(lastPostTime, slot.time).toMinutes() !in -slotError..slotError) {
-                    val message = "*Пост на слот ${slot.time.simpleFormatTime()} от ${slot.user.escapeMarkdown()} не найден, с последнего поста (${lastPostTime.simpleFormatTime()}) прошло $freeze минут*"
+                    val message = "*Пост на слот ${slot.time.simpleFormatTime()} от ${slot.user} не найден, с последнего поста (${lastPostTime.simpleFormatTime()}) прошло $freeze минут*"
                     tgMessageSender.sendChatMessage(editorsChatId, TgTextOutput(message), disableLinkPreview = true)
                     ownerIds.forEach { tgMessageSender.sendChatMessage(it, TgTextOutput(message), disableLinkPreview = true) }
                 }
@@ -271,7 +271,7 @@ suspend fun BotContext.forwardVkPosts(forcedByOwner: Boolean = false) {
             val checkPeriod = settings[CHECK_PERIOD_MINUTES].toInt()
             if (freeze in vkFreezeTimeout..(vkFreezeTimeout + checkPeriod * 5)) {
                 logger.info("More than $freeze minutes since last VK post, alerting...")
-                val missedSlotsPart = missedSlots.joinToString(separator = "\n") { "- ${it.time.simpleFormatTime()}: *Слот пропущен ${it.user.escapeMarkdown()}*" }
+                val missedSlotsPart = missedSlots.joinToString(separator = "\n") { "- ${it.time.simpleFormatTime()}: *Слот пропущен ${it.user}*" }
                 val message = lastPosts.asReversed().joinToString(
                     prefix = "*Уже $freeze минут ни одного нового поста ВК (кроме БТnews)*. Последние посты по МСК:\n",
                     separator = "\n",
