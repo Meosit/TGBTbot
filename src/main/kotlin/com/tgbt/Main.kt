@@ -262,7 +262,7 @@ suspend fun BotContext.forwardVkPosts(forcedByOwner: Boolean = false) {
                 val slot = missedSlots.last()
                 val lastPostTime = lastPosts.firstOrNull()?.let { Instant.ofEpochSecond(it.unixTime).atZone(moscowZoneId).toLocalTime() } ?: slot.time
                 if (Duration.between(lastPostTime, slot.time).toMinutes() !in -slotError..slotError) {
-                    val message = "*Пост на слот ${slot.time.simpleFormatTime()} от ${slot.user} не найден, с последнего поста (${lastPostTime.simpleFormatTime()}) прошло $freeze минут*"
+                    val message = generateSlotMissingMessage(slot.time.simpleFormatTime(), slot.user, lastPostTime.simpleFormatTime(), freeze)
                     tgMessageSender.sendChatMessage(editorsChatId, TgTextOutput(message), disableLinkPreview = true)
                     ownerIds.forEach { tgMessageSender.sendChatMessage(it, TgTextOutput(message), disableLinkPreview = true) }
                 }
@@ -297,6 +297,26 @@ suspend fun BotContext.forwardVkPosts(forcedByOwner: Boolean = false) {
         logger.info("Forwarding disabled, skipping...")
     }
 }
+
+private val slotMissingMessageFormats = listOf(
+    "*Очередное унижение от железки получает {user} за пропуск поста на {slotTime}, с последнего поста ({lastPostTime}) прошло {freeze} минут*",
+    "*Внимание внимание, {user} проебался. Стоило бы поставить пост в {slotTime}, с последнего поста ({lastPostTime}) прошло {freeze} минут*",
+    "*На мясных никакой надежды, {user} не поставил пост на {slotTime}. С последнего поста ({lastPostTime}) прошло {freeze} минут*",
+    "*На мясных никакой надежды, {user} не поставил пост на {slotTime}. С последнего поста ({lastPostTime}) прошло {freeze} минут*",
+    "*{user}, ну сколько можно тебе напоминать? Пост на {slotTime}. С последнего поста ({lastPostTime}) прошло {freeze} минут*",
+    "*{user}, мне самому что-ли предложку разгребать? {slotTime} пропустил. С последнего поста ({lastPostTime}) прошло {freeze} минут*",
+    "*Коллектив KFC 'У Бугурт-Палыча' осуждает {user} за пропуск поста на {slotTime}. С последнего поста ({lastPostTime}) прошло {freeze} минут*",
+    "*Никогда такого не было и вот опять... {user} пропустил пост на {slotTime}. С последнего поста ({lastPostTime}) прошло {freeze} минут*",
+    "*{user} проебался. Надо было пост поставить на {slotTime}. С последнего поста ({lastPostTime}) прошло {freeze} минут*",
+    "Чел ты *{user}... Нет поста на {slotTime}. С последнего поста ({lastPostTime}) прошло {freeze} минут*"
+)
+
+private fun generateSlotMissingMessage(slotTime: String, user: String, lastPostTime: String, freeze: Int) =
+    slotMissingMessageFormats.random()
+        .replace("{slotTime}", slotTime)
+        .replace("{user}", user)
+        .replace("{lastPostTime}", lastPostTime)
+        .replace("{freeze}", freeze.toString())
 
 
 suspend fun BotContext.forwardSuggestions(forcedByOwner: Boolean = false) {
