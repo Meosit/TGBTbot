@@ -191,26 +191,26 @@ suspend fun BotContext.sendLastDaySchedule() {
             .filter { it.isPinned + it.markedAsAds == 0 }
             .map(VkPost::toPost)
             .filterNot { it.text.contains("#БТnews") }
-            .filter { Duration.between(it.localTime, now).toHours() <= 24 }
+            .filter { Duration.between(Instant.ofEpochSecond(it.unixTime).atZone(moscowZoneId), Instant.now().atZone(moscowZoneId)).toHours() <= 24 }
 
         val mergedSlots = schedule
             .map { slot -> slot to last24hoursPosts.find { Duration.between(it.localTime, slot.time).abs().toMinutes() <= slotError } }
         val mergedPosts = last24hoursPosts
             .map { post -> schedule.find { Duration.between(it.time, post.localTime).abs().toMinutes() <= slotError } to post }
 
-        val merged = (mergedPosts + mergedSlots).distinct().sortedBy { it.first?.time ?: it.second?.localTime  }
+        val merged = (mergedPosts + mergedSlots).distinct().sortedBy { it.second?.localTime ?: it.first?.time }
 
         val message = merged.joinToString(
-            prefix = "Посты за последние 24 часа: \n",
-            separator = "\n"
+            prefix = "Посты за последние 24 часа (сначала старые): \n",
+            separator = "\n\n"
         ) {
             val slot = it.first
             val post = it.second
             when {
                 post != null -> {
                     val stats = with(post.stats) { ("${likes}\uD83E\uDD0D ${reposts}\uD83D\uDCE2 ${comments}\uD83D\uDCAC ${views}\uD83D\uDC41") }
-                    val ref = slot?.let { " в слот от ${slot.user}" } ?: ""
-                    "- ${post.localTime.simpleFormatTime()}: '${post.text.trimToLength(20, "…").replace('\n', ' ')}' $stats$ref"
+                    val ref = slot?.let { "\n> в слот от ${slot.user}" } ?: ""
+                    "*${post.localTime.simpleFormatTime()}*\n > '${post.text.trimToLength(20, "…").replace('\n', ' ')}' \n> $stats$ref"
                 }
                 slot != null -> "- ${slot.time.simpleFormatTime()}: *Слот пропущен ${slot.user}*"
                 else -> "- Эта строчка не должна здесь быть..."
