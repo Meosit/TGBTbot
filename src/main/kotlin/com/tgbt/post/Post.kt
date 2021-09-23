@@ -1,6 +1,9 @@
 package com.tgbt.post
 
+import com.tgbt.misc.moscowZoneId
 import com.tgbt.vk.VkPost
+import java.time.Instant
+import java.time.LocalTime
 
 data class Post(
     val id: Long,
@@ -23,3 +26,5 @@ fun VkPost.toPost(): Post {
         .firstOrNull()?.url
     return Post(id, date, text, imageUrl, stats)
 }
+
+val Post.localTime: LocalTime get() = Instant.ofEpochSecond(unixTime).atZone(moscowZoneId).toLocalTime()

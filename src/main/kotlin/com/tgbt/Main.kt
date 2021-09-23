@@ -7,10 +7,7 @@ import com.tgbt.bot.owner.VkScheduleCommand
 import com.tgbt.bot.user.UserMessages
 import com.tgbt.grammar.*
 import com.tgbt.misc.*
-import com.tgbt.post.Post
-import com.tgbt.post.PostStore
-import com.tgbt.post.TgPreparedPost
-import com.tgbt.post.toPost
+import com.tgbt.post.*
 import com.tgbt.settings.Setting.*
 import com.tgbt.settings.SettingStore
 import com.tgbt.settings.Settings
@@ -50,9 +47,9 @@ import java.net.URI
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalTime
+import java.time.ZonedDateTime
 import java.time.temporal.ChronoUnit
 import java.util.concurrent.TimeUnit
-import kotlin.math.min
 
 private val logger = LoggerFactory.getLogger("MainKt")
 
@@ -175,6 +172,54 @@ private suspend fun selfPing(httpClient: HttpClient, appUrl: String) {
     logger.info("Finished self-ping with response: '$response'")
 }
 
+suspend fun BotContext.sendLastDaySchedule() {
+    doNotThrow("Failed to send last 24 hours schedule to TG") {
+        val now = Instant.now().atZone(moscowZoneId).toLocalTime()
+        val communityId = settings[VK_COMMUNITY_ID].toLong()
+        val schedule = VkScheduleCommand.parseSchedule(settings[VK_SCHEDULE]).let {
+            if (it.isNotEmpty()) {
+                val futureIndex = it.indexOfFirst { s -> s.time > now }
+                it.subList(futureIndex, it.size) + it.subList(0, futureIndex)
+            } else {
+                emptyList()
+            }
+        }
+        val slotError = settings[VK_SCHEDULE_ERROR_MINUTES].toLong()
+
+        val last24hoursPosts = vkPostLoader
+            .load(50, communityId)
+            .filter { it.isPinned + it.markedAsAds == 0 }
+            .map(VkPost::toPost)
+            .filterNot { it.text.contains("#БТnews") }
+            .filter { Duration.between(it.localTime, now).toHours() <= 24 }
+
+        val mergedSlots = schedule
+            .map { slot -> slot to last24hoursPosts.find { Duration.between(it.localTime, slot.time).abs().toMinutes() <= slotError } }
+        val mergedPosts = last24hoursPosts
+            .map { post -> schedule.find { Duration.between(it.time, post.localTime).abs().toMinutes() <= slotError } to post }
+
+        val merged = (mergedPosts + mergedSlots).distinct().sortedBy { it.first?.time ?: it.second?.localTime  }
+
+        val message = merged.joinToString(
+            prefix = "Посты за последние 24 часа: \n",
+            separator = "\n"
+        ) {
+            val slot = it.first
+            val post = it.second
+            when {
+                post != null -> {
+                    val stats = with(post.stats) { ("${likes}\uD83E\uDD0D ${reposts}\uD83D\uDCE2 ${comments}\uD83D\uDCAC ${views}\uD83D\uDC41") }
+                    val ref = slot?.let { " в слот от ${slot.user}" } ?: ""
+                    "- ${post.localTime.simpleFormatTime()}: '${post.text.trimToLength(20, "…").replace('\n', ' ')}' $stats$ref"
+                }
+                slot != null -> "- ${slot.time.simpleFormatTime()}: *Слот пропущен ${slot.user}*"
+                else -> "- Эта строчка не должна здесь быть..."
+            }
+        }
+        ownerIds.forEach { tgMessageSender.sendChatMessage(it, TgTextOutput(message)) }
+    }
+}
+
 suspend fun BotContext.forwardVkPosts(forcedByOwner: Boolean = false) {
     val enabled = settings[FORWARDING_ENABLED].toBoolean()
     if (enabled) {
@@ -187,6 +232,7 @@ suspend fun BotContext.forwardVkPosts(forcedByOwner: Boolean = false) {
         val targetChannel = settings[TARGET_CHANNEL]
         val vkFreezeTimeout = settings[VK_FREEZE_TIMEOUT_MINUTES].toInt()
         val vkFreezeMentions = settings[VK_FREEZE_MENTIONS]
+        val vkFreezeSendStatus = settings[SEND_FREEZE_STATUS].toBoolean()
         val editorsChatId = settings[EDITOR_CHAT_ID]
 
         val stats = mutableMapOf<String, Int>()
@@ -257,32 +303,49 @@ suspend fun BotContext.forwardVkPosts(forcedByOwner: Boolean = false) {
         doNotThrow("Failed to send freeze notification") {
             val freeze = stats["freeze"] ?: 0
             val slotError = settings[VK_SCHEDULE_ERROR_MINUTES].toLong()
-            val missedSlots = VkScheduleCommand.findPastSlots(settings, min(slotError, freeze.toLong() - 1) until freeze)
-            if (missedSlots.isNotEmpty() && freeze < vkFreezeTimeout) {
-                val slot = missedSlots.last()
-                val lastPostTime = lastPosts.firstOrNull()?.let { Instant.ofEpochSecond(it.unixTime).atZone(moscowZoneId).toLocalTime() } ?: slot.time
-                if (Duration.between(lastPostTime, slot.time).toMinutes() !in -slotError..slotError) {
-                    val message = generateSlotMissingMessage(slot.time.simpleFormatTime(), slot.user, lastPostTime.simpleFormatTime(), freeze)
-                    tgMessageSender.sendChatMessage(editorsChatId, TgTextOutput(message), disableLinkPreview = true)
-                    ownerIds.forEach { tgMessageSender.sendChatMessage(it, TgTextOutput(message), disableLinkPreview = true) }
+            val now = ZonedDateTime.now(moscowZoneId).toLocalTime()
+            val sinceFirstPostInCheck = Duration.between(lastPosts.first().localTime, now).toMinutes()
+            val involvedSlots = VkScheduleCommand.findPastSlots(settings, sinceFirstPostInCheck..freeze)
+
+            val mergedSlots = involvedSlots
+                .map { slot -> slot to lastPosts.find { Duration.between(it.localTime, slot.time).abs().toMinutes() <= slotError } }
+            val mergedPosts = lastPosts
+                .map { post -> involvedSlots.find { Duration.between(it.time, post.localTime).abs().toMinutes() <= slotError } to post }
+
+            val latestSchedule = (mergedPosts + mergedSlots).distinct().sortedBy { it.first?.time ?: it.second?.localTime  }
+
+            if (latestSchedule.last().second == null && freeze < vkFreezeTimeout) {
+                val slot = latestSchedule.last().first
+                if (slot != null) {
+                    val lastPostTime = lastPosts.firstOrNull()?.localTime ?: slot.time
+                    if (Duration.between(lastPostTime, slot.time).toMinutes() !in -slotError..slotError) {
+                        val message = generateSlotMissingMessage(slot.time.simpleFormatTime(), slot.user, lastPostTime.simpleFormatTime(), freeze)
+                        tgMessageSender.sendChatMessage(editorsChatId, TgTextOutput(message), disableLinkPreview = true)
+                        ownerIds.forEach { tgMessageSender.sendChatMessage(it, TgTextOutput(message), disableLinkPreview = true) }
+                    }
                 }
             }
 
             val checkPeriod = settings[CHECK_PERIOD_MINUTES].toInt()
             if (freeze in vkFreezeTimeout..(vkFreezeTimeout + checkPeriod * 5)) {
                 logger.info("More than $freeze minutes since last VK post, alerting...")
-                val missedSlotsPart = missedSlots.joinToString(separator = "\n") { "- ${it.time.simpleFormatTime()}: *Слот пропущен ${it.user}*" }
-                val message = lastPosts.asReversed().joinToString(
+                val message = latestSchedule.joinToString(
                     prefix = "*Уже $freeze минут ни одного нового поста ВК (кроме БТnews)*. Последние посты по МСК:\n",
                     separator = "\n",
-                    postfix = "\n$missedSlotsPart\n$vkFreezeMentions"
+                    postfix = "\n$vkFreezeMentions"
                 ) {
-                    val time = Instant.ofEpochSecond(it.unixTime).simpleFormatTime()
-                    val preview = it.text.trimToLength(20, "…").replace('\n', ' ')
-                    "- $time: '$preview'"
+                    val slot = it.first
+                    val post = it.second
+                    when {
+                        post != null -> "- ${post.localTime.simpleFormatTime()}: '${post.text.trimToLength(20, "…").replace('\n', ' ')}'"
+                        slot != null -> "- ${slot.time.simpleFormatTime()}: *Слот пропущен ${slot.user}*"
+                        else -> "- Эта строчка не должна здесь быть..."
+                    }
                 }
                 tgMessageSender.sendChatMessage(editorsChatId, TgTextOutput(message), disableLinkPreview = true)
-                ownerIds.forEach { tgMessageSender.sendChatMessage(it, TgTextOutput(message), disableLinkPreview = true) }
+                if (vkFreezeSendStatus) {
+                    ownerIds.forEach { tgMessageSender.sendChatMessage(it, TgTextOutput(message), disableLinkPreview = true) }
+                }
             }
 
         }
@@ -302,13 +365,24 @@ private val slotMissingMessageFormats = listOf(
     "*Очередное унижение от железки получает {user} за пропуск поста на {slotTime}, с последнего поста ({lastPostTime}) прошло {freeze} минут*",
     "*Внимание внимание, {user} проебался. Стоило бы поставить пост в {slotTime}, с последнего поста ({lastPostTime}) прошло {freeze} минут*",
     "*На мясных никакой надежды, {user} не поставил пост на {slotTime}. С последнего поста ({lastPostTime}) прошло {freeze} минут*",
-    "*На мясных никакой надежды, {user} не поставил пост на {slotTime}. С последнего поста ({lastPostTime}) прошло {freeze} минут*",
     "*{user}, ну сколько можно тебе напоминать? Пост на {slotTime}. С последнего поста ({lastPostTime}) прошло {freeze} минут*",
     "*{user}, мне самому что-ли предложку разгребать? {slotTime} пропустил. С последнего поста ({lastPostTime}) прошло {freeze} минут*",
     "*Коллектив KFC 'У Бугурт-Палыча' осуждает {user} за пропуск поста на {slotTime}. С последнего поста ({lastPostTime}) прошло {freeze} минут*",
     "*Никогда такого не было и вот опять... {user} пропустил пост на {slotTime}. С последнего поста ({lastPostTime}) прошло {freeze} минут*",
     "*{user} проебался. Надо было пост поставить на {slotTime}. С последнего поста ({lastPostTime}) прошло {freeze} минут*",
-    "Чел ты *{user}... Нет поста на {slotTime}. С последнего поста ({lastPostTime}) прошло {freeze} минут*"
+    "*Чел ты {user}... Нет поста на {slotTime}. С последнего поста ({lastPostTime}) прошло {freeze} минут",
+    "*Давай по новой, {user}, всё хуйня. Нет поста на {slotTime}. С последнего поста ({lastPostTime}) прошло {freeze} минут*",
+    "*Я бы может меньше спамил, но {user} опять забыл как кнопки нажимать. Нет поста на {slotTime}. С последнего поста ({lastPostTime}) прошло {freeze} минут*",
+    "*{user}, ничему ты не учишься, ну сколько можно... {slotTime}. Опять. С последнего поста ({lastPostTime}) прошло {freeze} минут*",
+    "*{user} настолько уверенный пользователь ПК, что опять забыл поставить пост на {slotTime} ставить. С последнего поста ({lastPostTime}) прошло {freeze} минут*",
+    "*Я официально осуждаю {user} за проёб слота {slotTime}. С последнего поста ({lastPostTime}) прошло {freeze} минут*",
+    "*Если бы не проёб {user} в {slotTime}, сидел бы себе молча посты из ВК перекидывал. С последнего поста ({lastPostTime}) прошло {freeze} минут*",
+    "*Последнее китайское предупреждение {user}: не пропускай слоты на {slotTime}. С последнего поста ({lastPostTime}) прошло {freeze} минут*",
+    "*Минут 10-15 минут 5-10 пятого 4-5 10 пятого, или как {user} пост на {slotTime} ставил. С последнего поста ({lastPostTime}) прошло {freeze} минут*",
+    "*Очередной кожаный мешок {user} меня разочаровал пропустив слот в {slotTime}. С последнего поста ({lastPostTime}) прошло {freeze} минут*",
+    "*Ну и мразь же ты, {user}, отвратительно. Нет поста в {slotTime}. С последнего поста ({lastPostTime}) прошло {freeze} минут*",
+    "*{user}, поздравляю, ты только что пост. Что пост? Только что, в {slotTime}. С последнего поста ({lastPostTime}) прошло {freeze} минут*",
+    "*Можно бесконечно смотреть на 3 вещи. Как горит огонь, как течёт вода и как {user} не ставит пост на {slotTime}. С последнего поста ({lastPostTime}) прошло {freeze} минут*"
 )
 
 private fun generateSlotMissingMessage(slotTime: String, user: String, lastPostTime: String, freeze: Int) =
@@ -529,4 +603,5 @@ private fun insertDefaultSettings(settings: Settings, json: Json) = with(setting
     putIfAbsent(VK_FREEZE_MENTIONS, "anon")
     putIfAbsent(VK_SCHEDULE, "5:00 Улиточка")
     putIfAbsent(VK_SCHEDULE_ERROR_MINUTES, "5")
+    putIfAbsent(SEND_FREEZE_STATUS, "true")
 }

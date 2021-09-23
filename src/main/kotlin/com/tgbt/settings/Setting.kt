@@ -13,6 +13,7 @@ enum class Setting {
     SEND_STATUS,
     // VK freeze notifications
     VK_FREEZE_TIMEOUT_MINUTES,
+    SEND_FREEZE_STATUS,
     VK_FREEZE_MENTIONS,
     VK_SCHEDULE,
     VK_SCHEDULE_ERROR_MINUTES,

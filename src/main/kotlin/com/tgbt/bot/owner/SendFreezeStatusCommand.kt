@@ -5,8 +5,8 @@ import com.tgbt.bot.MessageContext
 import com.tgbt.settings.Setting
 import com.tgbt.telegram.output.TgTextOutput
 
-object SendSuggestionStatusCommand : BotCommand {
-    override val command = "/send_suggestion_status "
+object SendFreezeStatusCommand : BotCommand {
+    override val command = "/send_freeze_status "
 
     override suspend fun MessageContext.handle(): Unit = with(bot) {
         when (val value = messageText.removePrefix(command)) {
@@ -14,7 +14,7 @@ object SendSuggestionStatusCommand : BotCommand {
             "true", "false" -> {
                 settings[Setting.SEND_SUGGESTION_STATUS] = value
                 val markdownText = if (value == "true")
-                    "Enabled sending suggestion status each time" else "Enabled suggestion status each time"
+                    "Enabled sending additional direct message to owners in case of schedule freeze" else "Disabled sending additional direct message to owners in case of schedule freeze"
                 tgMessageSender.sendChatMessage(chatId, TgTextOutput(markdownText), message.id)
             }
             else -> {

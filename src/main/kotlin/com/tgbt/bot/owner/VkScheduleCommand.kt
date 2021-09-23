@@ -41,7 +41,7 @@ object VkScheduleCommand : BotCommand {
         tgMessageSender.sendChatMessage(chatId, TgTextOutput(md), message.id)
     }
 
-    private fun parseSchedule(raw: String): List<VkScheduleSlot> = raw.splitToSequence("\n")
+    fun parseSchedule(raw: String): List<VkScheduleSlot> = raw.splitToSequence("\n")
         .map { it.trim() }
         .filter { it.isNotBlank() }
         .mapIndexed { i: Int, row: String -> scheduleItemRegex.matchEntire(row) ?: throw VkScheduleParseException(i, row) }
