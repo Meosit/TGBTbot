@@ -3,25 +3,20 @@ package com.tgbt.bot.owner
 import com.tgbt.bot.BotCommand
 import com.tgbt.bot.MessageContext
 import com.tgbt.misc.escapeMarkdown
-import com.tgbt.misc.moscowZoneId
 import com.tgbt.misc.simpleFormatTime
 import com.tgbt.settings.Setting
 import com.tgbt.settings.Settings
 import com.tgbt.telegram.output.TgTextOutput
-import org.slf4j.LoggerFactory
-import java.time.Duration
 import java.time.LocalTime
-import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 
 
 data class VkScheduleSlot(val time: LocalTime, val user: String)
 
-private class VkScheduleParseException(val index: Int, val row: String): RuntimeException("$index: \"$row\"")
+private class VkScheduleParseException(val index: Int, val row: String) : RuntimeException("$index: \"$row\"")
 
 object VkScheduleCommand : BotCommand {
 
-    private val logger = LoggerFactory.getLogger("VkScheduleCommand")
     override val command = "/vk_schedule\n"
     private val scheduleItemRegex = """^(\d?\d[:.]\d\d)\s(.+)$""".toRegex()
     private val timePattern = DateTimeFormatter.ofPattern("H:mm")
@@ -41,22 +36,19 @@ object VkScheduleCommand : BotCommand {
         tgMessageSender.sendChatMessage(chatId, TgTextOutput(md), message.id)
     }
 
-    fun parseSchedule(raw: String): List<VkScheduleSlot> = raw.splitToSequence("\n")
+    private fun parseSchedule(raw: String): List<VkScheduleSlot> = raw
+        .splitToSequence("\n")
         .map { it.trim() }
         .filter { it.isNotBlank() }
-        .mapIndexed { i: Int, row: String -> scheduleItemRegex.matchEntire(row) ?: throw VkScheduleParseException(i, row) }
-        .map { VkScheduleSlot(LocalTime.parse(it.groupValues[1].replace('.', ':'), timePattern), it.groupValues[2]) }
+        .mapIndexed { i: Int, row: String -> scheduleItemRegex.matchEntire(row) }
+        .map {
+            if (it == null) null else VkScheduleSlot(
+                LocalTime.parse(it.groupValues[1].replace('.', ':'), timePattern),
+                it.groupValues[2]
+            )
+        }
+        .filterNotNull()
         .toList()
 
-
-    fun findPastSlots(settings: Settings, coerceRange: LongRange): List<VkScheduleSlot> = try {
-        val rawSchedule = settings[Setting.VK_SCHEDULE]
-        val scheduleItems = parseSchedule(rawSchedule)
-        val now = ZonedDateTime.now(moscowZoneId).toLocalTime()
-        scheduleItems.filter { Duration.between(it.time, now).toMinutes() in coerceRange }
-    } catch (e: VkScheduleParseException) {
-        logger.error("Failed to parse already saved schedule! ${e.message}")
-        emptyList()
-    }
-
+    fun parseSchedule(settings: Settings) = parseSchedule(settings[Setting.VK_SCHEDULE])
 }

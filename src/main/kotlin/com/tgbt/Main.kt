@@ -4,6 +4,7 @@ import com.tgbt.bot.BotContext
 import com.tgbt.bot.MessageContext
 import com.tgbt.bot.editor.EditorButtonAction
 import com.tgbt.bot.owner.VkScheduleCommand
+import com.tgbt.bot.owner.VkScheduleSlot
 import com.tgbt.bot.user.UserMessages
 import com.tgbt.grammar.*
 import com.tgbt.misc.*
@@ -47,7 +48,6 @@ import java.net.URI
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalTime
-import java.time.ZonedDateTime
 import java.time.temporal.ChronoUnit
 import java.util.concurrent.TimeUnit
 
@@ -174,31 +174,19 @@ private suspend fun selfPing(httpClient: HttpClient, appUrl: String) {
 
 suspend fun BotContext.sendLastDaySchedule() {
     doNotThrow("Failed to send last 24 hours schedule to TG") {
-        val now = Instant.now().atZone(moscowZoneId).toLocalTime()
         val communityId = settings[VK_COMMUNITY_ID].toLong()
-        val schedule = VkScheduleCommand.parseSchedule(settings[VK_SCHEDULE]).let {
-            if (it.isNotEmpty()) {
-                val futureIndex = it.indexOfFirst { s -> s.time > now }
-                it.subList(futureIndex, it.size) + it.subList(0, futureIndex)
-            } else {
-                emptyList()
-            }
-        }
+        val schedule = VkScheduleCommand.parseSchedule(settings)
         val slotError = settings[VK_SCHEDULE_ERROR_MINUTES].toLong()
+        val now = zonedNow()
 
         val last24hoursPosts = vkPostLoader
             .load(50, communityId)
             .filter { it.isPinned + it.markedAsAds == 0 }
             .map(VkPost::toPost)
             .filterNot { it.text.contains("#БТnews") }
-            .filter { Duration.between(Instant.ofEpochSecond(it.unixTime).atZone(moscowZoneId), Instant.now().atZone(moscowZoneId)).toHours() <= 24 }
+            .filter { Duration.between(it.zonedTime, now).toMinutes() < 24 * 60 }
 
-        val mergedSlots = schedule
-            .map { slot -> slot to last24hoursPosts.find { Duration.between(it.localTime, slot.time).abs().toMinutes() <= slotError } }
-        val mergedPosts = last24hoursPosts
-            .map { post -> schedule.find { Duration.between(it.time, post.localTime).abs().toMinutes() <= slotError } to post }
-
-        val merged = (mergedPosts + mergedSlots).distinct().sortedBy { it.second?.localTime ?: it.first?.time }
+        val merged = mergePostsWithSchedule(schedule, last24hoursPosts, slotError)
 
         val message = merged.joinToString(
             prefix = "Посты за последние 24 часа (сначала старые): \n",
@@ -210,7 +198,7 @@ suspend fun BotContext.sendLastDaySchedule() {
                 post != null -> {
                     val stats = with(post.stats) { ("${likes}\uD83E\uDD0D ${reposts}\uD83D\uDCE2 ${comments}\uD83D\uDCAC ${views}\uD83D\uDC41") }
                     val ref = slot?.let { "\n> в слот от ${slot.user}" } ?: ""
-                    "*${post.localTime.simpleFormatTime()}*\n > '${post.text.trimToLength(20, "…").replace('\n', ' ')}' \n> $stats$ref"
+                    "*${post.localTime.simpleFormatTime()}*\n > '${post.text.trimToLength(20, "…").replace('\n', ' ').escapeMarkdown()}' \n> $stats$ref"
                 }
                 slot != null -> "- ${slot.time.simpleFormatTime()}: *Слот пропущен ${slot.user}*"
                 else -> "- Эта строчка не должна здесь быть..."
@@ -303,26 +291,27 @@ suspend fun BotContext.forwardVkPosts(forcedByOwner: Boolean = false) {
         doNotThrow("Failed to send freeze notification") {
             val freeze = stats["freeze"] ?: 0
             val slotError = settings[VK_SCHEDULE_ERROR_MINUTES].toLong()
-            val now = ZonedDateTime.now(moscowZoneId).toLocalTime()
-            val sinceFirstPostInCheck = Duration.between(lastPosts.first().localTime, now).toMinutes()
-            val involvedSlots = VkScheduleCommand.findPastSlots(settings, sinceFirstPostInCheck..freeze)
+            val freezeTime = zonedNow().minusMinutes(freeze.toLong()).toLocalTime()
+            val oldestPostTime = lastPosts.last().localTime
+            val schedule = VkScheduleCommand.parseSchedule(settings)
+            val involvedSlots = schedule.filter { slot ->
+                if (freezeTime <= oldestPostTime) {
+                    // day shift happened in this check
+                    slot.time !in freezeTime..oldestPostTime
+                } else {
+                    slot.time in oldestPostTime..freezeTime
+                }
+            }
 
-            val mergedSlots = involvedSlots
-                .map { slot -> slot to lastPosts.find { Duration.between(it.localTime, slot.time).abs().toMinutes() <= slotError } }
-            val mergedPosts = lastPosts
-                .map { post -> involvedSlots.find { Duration.between(it.time, post.localTime).abs().toMinutes() <= slotError } to post }
-
-            val latestSchedule = (mergedPosts + mergedSlots).distinct().sortedBy { it.first?.time ?: it.second?.localTime  }
+            val latestSchedule = mergePostsWithSchedule(involvedSlots, lastPosts, slotError)
 
             if (latestSchedule.last().second == null && freeze < vkFreezeTimeout) {
                 val slot = latestSchedule.last().first
-                if (slot != null) {
-                    val lastPostTime = lastPosts.firstOrNull()?.localTime ?: slot.time
-                    if (Duration.between(lastPostTime, slot.time).toMinutes() !in -slotError..slotError) {
-                        val message = generateSlotMissingMessage(slot.time.simpleFormatTime(), slot.user, lastPostTime.simpleFormatTime(), freeze)
-                        tgMessageSender.sendChatMessage(editorsChatId, TgTextOutput(message), disableLinkPreview = true)
-                        ownerIds.forEach { tgMessageSender.sendChatMessage(it, TgTextOutput(message), disableLinkPreview = true) }
-                    }
+                val post = latestSchedule.findLast { it.second != null }?.second
+                if (slot != null && post != null) {
+                    val message = generateSlotMissingMessage(slot.time.simpleFormatTime(), slot.user, post.localTime.simpleFormatTime(), freeze)
+                    tgMessageSender.sendChatMessage(editorsChatId, TgTextOutput(message), disableLinkPreview = true)
+                    ownerIds.forEach { tgMessageSender.sendChatMessage(it, TgTextOutput(message), disableLinkPreview = true) }
                 }
             }
 
@@ -330,7 +319,7 @@ suspend fun BotContext.forwardVkPosts(forcedByOwner: Boolean = false) {
             if (freeze in vkFreezeTimeout..(vkFreezeTimeout + checkPeriod * 5)) {
                 logger.info("More than $freeze minutes since last VK post, alerting...")
                 val message = latestSchedule.joinToString(
-                    prefix = "*Уже $freeze минут ни одного нового поста ВК (кроме БТnews)*. Последние посты по МСК:\n",
+                    prefix = "*Уже $freeze минут ни одного нового поста ВК*. Последние посты по МСК:\n",
                     separator = "\n",
                     postfix = "\n$vkFreezeMentions"
                 ) {
@@ -359,6 +348,40 @@ suspend fun BotContext.forwardVkPosts(forcedByOwner: Boolean = false) {
     } else {
         logger.info("Forwarding disabled, skipping...")
     }
+}
+
+private fun mergePostsWithSchedule(
+    involvedSlots: List<VkScheduleSlot>,
+    lastPosts: List<Post>,
+    slotError: Long
+): List<Pair<VkScheduleSlot?, Post?>> {
+    val now = zonedNow()
+    val nowDate = zonedNow().toLocalDate()
+    val mergedSlots = involvedSlots
+        .map { slot ->
+            slot to lastPosts.find { post ->
+                val time = if (now.toLocalTime() >= slot.time) slot.time.atDate(nowDate) else slot.time.atDate(
+                    nowDate.minusDays(1)
+                )
+                Duration.between(time, post.zonedTime.toLocalDateTime()).abs().toMinutes() <= slotError
+            }
+        }
+    val mergedPosts = lastPosts
+        .map { post ->
+            involvedSlots.find { slot ->
+                val time = if (now.toLocalTime() >= slot.time) slot.time.atDate(nowDate) else slot.time.atDate(
+                    nowDate.minusDays(1)
+                )
+                Duration.between(time, post.zonedTime.toLocalDateTime()).abs().toMinutes() <= slotError
+            } to post
+        }
+
+    val latestSchedule = (mergedPosts + mergedSlots).distinct().sortedBy {
+        // sorting that all list occurred in past
+        val time = it.second?.localTime ?: it.first?.time ?: LocalTime.MIN
+        if (now.toLocalTime() >= time) time.atDate(nowDate) else time.atDate(nowDate.minusDays(1))
+    }
+    return latestSchedule
 }
 
 private val slotMissingMessageFormats = listOf(
@@ -451,13 +474,13 @@ suspend fun BotContext.forwardSuggestions(forcedByOwner: Boolean = false) {
     }
 }
 
-suspend fun BotContext.notifyAboutForgottenSuggestions(forcedByOwner: Boolean = false, createdBeforeHours: Int = 0): Int {
+suspend fun BotContext.notifyAboutForgottenSuggestions(force: Boolean = false, createdBeforeHours: Int = 0): Int {
     val start = LocalTime.of(0, 0, 0, 0)
     val end = LocalTime.of(0, settings[SUGGESTION_POLLING_DELAY_MINUTES].toInt(), 0, 0)
-    val now = LocalTime.from(Instant.now().atZone(moscowZoneId))
+    val now = zonedNow().toLocalTime()
     var forgotten = 0
-    if (forcedByOwner || (now.isAfter(start) && now.isBefore(end))) {
-        if (!forcedByOwner) {
+    if (force || (now in start..end)) {
+        if (!force) {
             logger.info("New day, checking for forgotten posts")
         }
         val forgottenSuggestions = doNotThrow("Failed to fetch PENDING_EDITOR_REVIEW suggestions from DB") {
