@@ -122,7 +122,8 @@ data class MessageContext(
             VkScheduleCommand,
             VkScheduleErrorCommand,
             SendFreezeStatusCommand,
-            LastDayScheduleCommand
+            LastDayScheduleCommand,
+            LastDayMissedCommand
         )
 
         private val USER_COMMANDS: List<BotCommand> = listOf(

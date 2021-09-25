@@ -172,7 +172,7 @@ private suspend fun selfPing(httpClient: HttpClient, appUrl: String) {
     logger.info("Finished self-ping with response: '$response'")
 }
 
-suspend fun BotContext.sendLastDaySchedule() {
+suspend fun BotContext.sendLastDaySchedule(onlyMissed: Boolean = false) {
     doNotThrow("Failed to send last 24 hours schedule to TG") {
         val communityId = settings[VK_COMMUNITY_ID].toLong()
         val schedule = VkScheduleCommand.parseSchedule(settings)
@@ -188,9 +188,9 @@ suspend fun BotContext.sendLastDaySchedule() {
 
         val merged = mergePostsWithSchedule(schedule, last24hoursPosts, slotError)
 
-        val message = merged.joinToString(
-            prefix = "Посты за последние 24 часа (сначала старые): \n",
-            separator = "\n\n"
+        val message = merged.filter { !onlyMissed || (it.first != null && it.second == null) }.joinToString(
+            prefix = if (onlyMissed) "Пропущеные посты за последние 24 часа:\n" else "Посты за последние 24 часа (сначала старые):\n",
+            separator = if (onlyMissed) "\n" else "\n\n"
         ) {
             val slot = it.first
             val post = it.second
@@ -198,13 +198,13 @@ suspend fun BotContext.sendLastDaySchedule() {
                 post != null -> {
                     val stats = with(post.stats) { ("${likes}\uD83E\uDD0D ${reposts}\uD83D\uDCE2 ${comments}\uD83D\uDCAC ${views}\uD83D\uDC41") }
                     val ref = slot?.let { "\n> в слот от ${slot.user}" } ?: ""
-                    "*${post.localTime.simpleFormatTime()}*\n > '${post.text.trimToLength(20, "…").replace('\n', ' ').escapeMarkdown()}' \n> $stats$ref"
+                    "*${post.localTime.simpleFormatTime()}*\n> '${post.text.trimToLength(20, "…").replace('\n', ' ').escapeMarkdown()}' \n> $stats$ref"
                 }
                 slot != null -> "- ${slot.time.simpleFormatTime()}: *Слот пропущен ${slot.user}*"
                 else -> "- Эта строчка не должна здесь быть..."
             }
         }
-        ownerIds.forEach { tgMessageSender.sendChatMessage(it, TgTextOutput(message)) }
+        ownerIds.forEach { tgMessageSender.sendChatMessage(it, TgTextOutput(message.trim())) }
     }
 }
 

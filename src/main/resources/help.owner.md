@@ -33,3 +33,4 @@ For VK freeze timeout notifications (when no new posts appear):
 /vk\_schedule `<vk schedule>`- a list of schedule items in format `00:00 <@nickname|text>`, each on a new line
 /vk\_schedule\_error `<minutes>` - period around a schedule slot when no notification sent
 /last\_day\_schedule - print schedule along with missed slots for the last day
+/last\_day\_missed - print all missed slots for the last day
