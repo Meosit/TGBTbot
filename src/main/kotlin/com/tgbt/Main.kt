@@ -50,6 +50,7 @@ import java.time.Instant
 import java.time.LocalTime
 import java.time.temporal.ChronoUnit
 import java.util.concurrent.TimeUnit
+import kotlin.math.min
 
 private val logger = LoggerFactory.getLogger("MainKt")
 
@@ -291,15 +292,15 @@ suspend fun BotContext.forwardVkPosts(forcedByOwner: Boolean = false) {
         doNotThrow("Failed to send freeze notification") {
             val freeze = stats["freeze"] ?: 0
             val slotError = settings[VK_SCHEDULE_ERROR_MINUTES].toLong()
-            val freezeTime = zonedNow().minusMinutes(freeze.toLong()).toLocalTime()
+            val latestSlotTime = zonedNow().minusMinutes(min(freeze.toLong() - 1, slotError)).toLocalTime()
             val oldestPostTime = lastPosts.last().localTime
             val schedule = VkScheduleCommand.parseSchedule(settings)
             val involvedSlots = schedule.filter { slot ->
-                if (freezeTime <= oldestPostTime) {
+                if (latestSlotTime < oldestPostTime) {
                     // day shift happened in this check
-                    slot.time !in freezeTime..oldestPostTime
+                    slot.time !in latestSlotTime..oldestPostTime
                 } else {
-                    slot.time in oldestPostTime..freezeTime
+                    slot.time in oldestPostTime..latestSlotTime
                 }
             }
 
