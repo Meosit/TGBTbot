@@ -40,7 +40,7 @@ import io.ktor.utils.io.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonConfiguration
+import kotlinx.serialization.modules.plus
 import org.slf4j.LoggerFactory
 import java.io.PrintWriter
 import java.io.StringWriter
@@ -65,7 +65,11 @@ fun Application.main() {
     val ownerIds: List<String> = if (System.getenv("OWNER_IDS").isNullOrBlank()) emptyList() else
         System.getenv("OWNER_IDS").split(',')
 
-    val json = Json(JsonConfiguration.Stable.copy(ignoreUnknownKeys = true, isLenient = true), context = exprModule)
+    val json = Json {
+        ignoreUnknownKeys = true
+        isLenient = true
+        serializersModule += exprModule
+    }
 
     install(ContentNegotiation) {
         json(json, ContentType.Application.Json)
@@ -214,7 +218,7 @@ suspend fun BotContext.forwardVkPosts(forcedByOwner: Boolean = false) {
     if (enabled) {
         logger.info("Checking for new posts")
         val postsCount = settings[POST_COUNT_TO_LOAD].toInt()
-        val condition = json.parse(Expr.serializer(), settings[CONDITION_EXPR])
+        val condition = json.decodeFromString(Expr.serializer(), settings[CONDITION_EXPR])
         val communityId = settings[VK_COMMUNITY_ID].toLong()
         val footerMd = settings[FOOTER_MD]
         val sendStatus = settings[SEND_STATUS].toBoolean()
@@ -549,7 +553,7 @@ private suspend inline fun <T> BotContext.doNotThrow(message: String, block: () 
 
 suspend fun BotContext.sendTelegramPost(targetChat: String, prepared: TgPreparedPost, keyboardMarkup: InlineKeyboardMarkup? = null): Message? {
     val usePhotoMode = settings[USE_PHOTO_MODE].toBoolean()
-    val keyboardJson = keyboardMarkup?.let { json.stringify(InlineKeyboardMarkup.serializer(), keyboardMarkup) }
+    val keyboardJson = keyboardMarkup?.let { json.encodeToString(InlineKeyboardMarkup.serializer(), keyboardMarkup) }
     return when {
         usePhotoMode && prepared.canBeSendAsImageWithCaption -> tgMessageSender
             .sendChatPhoto(
@@ -607,7 +611,7 @@ private fun insertDefaultSettings(settings: Settings, json: Json) = with(setting
     putIfAbsent(FOOTER_MD, "")
     putIfAbsent(SEND_STATUS, "true")
     putIfAbsent(
-        CONDITION_EXPR, json.stringify(
+        CONDITION_EXPR, json.encodeToString(
             Expr.serializer(),
             Or(
                 Likes(ConditionalOperator.GREATER_OR_EQUAL, 1000),

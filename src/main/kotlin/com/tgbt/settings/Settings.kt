@@ -1,24 +1,24 @@
 package com.tgbt.settings
 
-import kotlinx.atomicfu.atomic
+import java.util.concurrent.atomic.AtomicReference
 
 class Settings(private val store: SettingStore) {
 
     private val settings by lazy {
-        atomic(store.selectAll())
+        AtomicReference(store.selectAll())
     }
 
     operator fun set(key: Setting, value: String) {
         if (store.insertOrUpdate(key.name, value)) {
-            settings.value = settings.value + (key.name to value)
+            settings.updateAndGet { it + (key.name to value) }
         }
     }
 
-    operator fun get(key: Setting): String = settings.value.getValue(key.name)
+    operator fun get(key: Setting): String = settings.get().getValue(key.name)
 
     fun putIfAbsent(key: Setting, value: String) {
         synchronized(this) {
-            if (!settings.value.containsKey(key.name)) {
+            if (!settings.get().containsKey(key.name)) {
                 this[key] = value
             }
         }

@@ -40,7 +40,7 @@ object VkScheduleCommand : BotCommand {
         .splitToSequence("\n")
         .map { it.trim() }
         .filter { it.isNotBlank() }
-        .mapIndexed { i: Int, row: String -> scheduleItemRegex.matchEntire(row) }
+        .map { row: String -> scheduleItemRegex.matchEntire(row) }
         .map {
             if (it == null) null else VkScheduleSlot(
                 LocalTime.parse(it.groupValues[1].replace('.', ':'), timePattern),

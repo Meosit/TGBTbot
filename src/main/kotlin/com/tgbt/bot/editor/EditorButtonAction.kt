@@ -81,7 +81,7 @@ object EditorButtonAction {
             CONFIRM_POST_ANONYMOUSLY_DATA -> sendSuggestion(suggestion, message, callback, anonymous = true)
             CANCEL_DATA -> {
                 if (suggestion != null) {
-                    val keyboardJson = json.stringify(InlineKeyboardMarkup.serializer(), ACTION_KEYBOARD)
+                    val keyboardJson = json.encodeToString(InlineKeyboardMarkup.serializer(), ACTION_KEYBOARD)
                     if (suggestion.scheduleTime != null) {
                         val updated = suggestion.copy(scheduleTime = null, status = SuggestionStatus.PENDING_EDITOR_REVIEW)
                         suggestionStore.update(updated, byAuthor = false)
@@ -222,7 +222,7 @@ object EditorButtonAction {
             yield(listOf(InlineKeyboardButton("↩️ Отмена действия", CANCEL_DATA)))
         }.toList()
         val inlineKeyboardMarkup = InlineKeyboardMarkup(inlineKeyboard)
-        val keyboardJson = json.stringify(InlineKeyboardMarkup.serializer(), inlineKeyboardMarkup)
+        val keyboardJson = json.encodeToString(InlineKeyboardMarkup.serializer(), inlineKeyboardMarkup)
         tgMessageSender.editChatMessageKeyboard(message.chat.id.toString(), message.id, keyboardJson)
         tgMessageSender.pingCallbackQuery(callback.id)
     }
@@ -252,7 +252,7 @@ object EditorButtonAction {
         } else {
             InlineKeyboardMarkup(listOf(listOf(InlineKeyboardButton(buttonLabel, DELETED_DATA)), optionalActions))
         }
-        val keyboardJson = json.stringify(InlineKeyboardMarkup.serializer(), inlineKeyboardMarkup)
+        val keyboardJson = json.encodeToString(InlineKeyboardMarkup.serializer(), inlineKeyboardMarkup)
         tgMessageSender.editChatMessageKeyboard(message.chat.id.toString(), message.id, keyboardJson)
         tgMessageSender.pingCallbackQuery(callback.id, buttonLabel)
     }

@@ -41,7 +41,7 @@ class EditorUpdatePostCommand(private val suggestion: UserSuggestion): PostComma
                             if (actuallyDeleted) {
                                 tgMessageSender.sendChatMessage(suggestion.authorChatId.toString(), TgTextOutput(UserMessages.postDiscardedWithCommentMessage
                                     .format(suggestion.postTextTeaser(), value.escapeMarkdown())))
-                                val keyboardJson = json.stringify(InlineKeyboardMarkup.serializer(),
+                                val keyboardJson = json.encodeToString(InlineKeyboardMarkup.serializer(),
                                     InlineKeyboardButton("❌ Удалён ${message.from?.simpleRef ?: "anon"} c \uD83D\uDCAC в ${Instant.now().simpleFormatTime()} ❌", EditorButtonAction.DELETED_DATA).toMarkup())
                                 tgMessageSender.editChatMessageKeyboard(suggestion.editorChatId.toString(), suggestion.editorMessageId, keyboardJson)
                                 logger.info("Editor ${message.from?.simpleRef} rejected post '${suggestion.postTextTeaser()}' from ${suggestion.authorName} with comment '$value'")
@@ -68,7 +68,7 @@ class EditorUpdatePostCommand(private val suggestion: UserSuggestion): PostComma
         message: Message,
         prepared: TgPreparedPost
     ) {
-        val keyboardJson = message.replyMarkup?.let { json.stringify(InlineKeyboardMarkup.serializer(), it) }
+        val keyboardJson = message.replyMarkup?.let { json.encodeToString(InlineKeyboardMarkup.serializer(), it) }
         when {
             message.photo != null  -> {
                 when {

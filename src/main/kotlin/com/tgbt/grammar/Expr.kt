@@ -4,6 +4,7 @@ import com.tgbt.post.PostStats
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.modules.SerializersModule
+import kotlinx.serialization.modules.polymorphic
 
 @Serializable
 enum class ConditionalOperator(val testFun: (Int, Int) -> Boolean) {
@@ -65,12 +66,12 @@ data class Not(val o: Expr) : Expr() {
 
 val exprModule = SerializersModule {
     polymorphic(Expr::class) {
-        Likes::class with Likes.serializer()
-        Reposts::class with Reposts.serializer()
-        Comments::class with Comments.serializer()
-        Views::class with Views.serializer()
-        And::class with And.serializer()
-        Or::class with Or.serializer()
-        Not::class with Not.serializer()
+        subclass(Likes::class, Likes.serializer())
+        subclass(Reposts::class, Reposts.serializer())
+        subclass(Comments::class, Comments.serializer())
+        subclass(Views::class, Views.serializer())
+        subclass(And::class, And.serializer())
+        subclass(Or::class, Or.serializer())
+        subclass(Not::class, Not.serializer())
     }
 }

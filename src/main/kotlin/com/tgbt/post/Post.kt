@@ -22,7 +22,7 @@ fun VkPost.toPost(): Post {
     )
     val imageUrl = attachments
         .mapNotNull { it.photo }
-        .map { photo -> photo.sizes.maxBy { it.height * it.width } }
+        .map { photo -> photo.sizes.maxByOrNull { it.height * it.width } }
         .firstOrNull()?.url
     return Post(id, date, text, imageUrl, stats)
 }

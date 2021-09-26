@@ -17,7 +17,7 @@ object ConditionCommand : BotCommand {
     override suspend fun MessageContext.handle(): Unit = with (bot) {
         when (val maybeExpr = ConditionGrammar.tryParseToEnd(messageText.removePrefix(command))) {
             is Parsed -> {
-                val exprJson = json.stringify(Expr.serializer(), maybeExpr.value)
+                val exprJson = json.encodeToString(Expr.serializer(), maybeExpr.value)
                 settings[Setting.CONDITION_EXPR] = exprJson
                 val markdownText = if (exprJson == settings[Setting.CONDITION_EXPR])
                     "Condition updated successfully" else "Failed to save condition to database"
