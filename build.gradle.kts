@@ -57,7 +57,7 @@ dependencies {
     implementation("io.ktor:ktor-client-serialization-jvm:$ktorVersion")
     implementation("ch.qos.logback:logback-classic:1.2.6")
     implementation("org.postgresql:postgresql:42.2.23")
-    implementation("com.zaxxer:HikariCP:5.0.0")
+    implementation("com.zaxxer:HikariCP:3.4.5")
     implementation("com.vladsch.kotlin-jdbc:kotlin-jdbc:0.5.2")
 
     testImplementation(kotlin("test"))
