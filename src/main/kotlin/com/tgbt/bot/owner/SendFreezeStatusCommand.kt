@@ -12,7 +12,7 @@ object SendFreezeStatusCommand : BotCommand {
         when (val value = messageText.removePrefix(command)) {
             "" -> tgMessageSender.sendChatMessage(chatId, TgTextOutput("Argument expected"), message.id)
             "true", "false" -> {
-                settings[Setting.SEND_SUGGESTION_STATUS] = value
+                settings[Setting.SEND_FREEZE_STATUS] = value
                 val markdownText = if (value == "true")
                     "Enabled sending additional direct message to owners in case of schedule freeze" else "Disabled sending additional direct message to owners in case of schedule freeze"
                 tgMessageSender.sendChatMessage(chatId, TgTextOutput(markdownText), message.id)

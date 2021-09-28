@@ -29,6 +29,7 @@ import io.ktor.client.features.*
 import io.ktor.client.features.json.*
 import io.ktor.client.features.json.serializer.*
 import io.ktor.client.request.*
+import io.ktor.client.statement.*
 import io.ktor.features.*
 import io.ktor.http.*
 import io.ktor.request.*
@@ -398,7 +399,7 @@ private val slotMissingMessageFormats = listOf(
     "*Коллектив KFC 'У Бугурт-Палыча' осуждает {user} за пропуск поста на {slotTime}. С последнего поста ({lastPostTime}) прошло {freeze} минут*",
     "*Никогда такого не было и вот опять... {user} пропустил пост на {slotTime}. С последнего поста ({lastPostTime}) прошло {freeze} минут*",
     "*{user} проебался. Надо было пост поставить на {slotTime}. С последнего поста ({lastPostTime}) прошло {freeze} минут*",
-    "*Чел ты {user}... Нет поста на {slotTime}. С последнего поста ({lastPostTime}) прошло {freeze} минут",
+    "*Чел ты {user}... Нет поста на {slotTime}. С последнего поста ({lastPostTime}) прошло {freeze} минут*",
     "*Давай по новой, {user}, всё хуйня. Нет поста на {slotTime}. С последнего поста ({lastPostTime}) прошло {freeze} минут*",
     "*Я бы может меньше спамил, но {user} опять забыл как кнопки нажимать. Нет поста на {slotTime}. С последнего поста ({lastPostTime}) прошло {freeze} минут*",
     "*{user}, ничему ты не учишься, ну сколько можно... {slotTime}. Опять. С последнего поста ({lastPostTime}) прошло {freeze} минут*",
@@ -542,9 +543,13 @@ private suspend fun BotContext.postScheduledSuggestions(footerMd: String): Int {
 private suspend inline fun <T> BotContext.doNotThrow(message: String, block: () -> T?): T? = try {
     block()
 } catch (e: Exception) {
-    val clientError = (e as? ClientRequestException)?.response?.content?.readUTF8Line()
-    val markdownText =
-        "$message, please check logs, error message:\n`${clientError ?: e.message}`"
+    val stack = e.stackTrace
+    .filter { it.className.startsWith("com.tgbt") }
+        .joinToString("\n") { "> ${it.className}.${it.methodName}(${it.lineNumber})" }
+    val response = (e as? ClientRequestException)?.response
+    val clientError = response?.content?.readUTF8Line() ?: e.message
+    val textParameter = (response?.let { it.request.url.parameters["text"] ?: "" } ?: "").trimToLength(400, "|<- truncated")
+    val markdownText = "$message, please check logs, error message:\n`$clientError`\n\nText parameter (first 400 chars): `$textParameter`\n\nStacktrace:\n`$stack`"
     logger.error(markdownText, e)
     val output = TgTextOutput(markdownText)
     ownerIds.forEach { tgMessageSender.sendChatMessage(it, output) }
