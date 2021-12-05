@@ -53,7 +53,7 @@ import java.time.temporal.ChronoUnit
 import java.util.concurrent.TimeUnit
 import kotlin.math.min
 
-private val logger = LoggerFactory.getLogger("MainKt")
+val logger = LoggerFactory.getLogger("MainKt")
 
 fun main(args: Array<String>) = EngineMain.main(args)
 
@@ -317,7 +317,9 @@ suspend fun BotContext.forwardVkPosts(forcedByOwner: Boolean = false) {
                 if (slot != null && post != null) {
                     val message = generateSlotMissingMessage(slot.time.simpleFormatTime(), slot.user, post.localTime.simpleFormatTime(), freeze)
                     tgMessageSender.sendChatMessage(editorsChatId, TgTextOutput(message), disableLinkPreview = true)
-                    ownerIds.forEach { tgMessageSender.sendChatMessage(it, TgTextOutput(message), disableLinkPreview = true) }
+                    if (vkFreezeSendStatus) {
+                        ownerIds.forEach { tgMessageSender.sendChatMessage(it, TgTextOutput(message), disableLinkPreview = true) }
+                    }
                 }
             }
 
@@ -332,7 +334,7 @@ suspend fun BotContext.forwardVkPosts(forcedByOwner: Boolean = false) {
                     val slot = it.first
                     val post = it.second
                     when {
-                        post != null -> "- ${post.localTime.simpleFormatTime()}: '${post.text.trimToLength(20, "…").replace('\n', ' ')}'"
+                        post != null -> "- ${post.localTime.simpleFormatTime()}: '${post.text.trimToLength(20, "…").replace('\n', ' ').escapeMarkdown()}'"
                         slot != null -> "- ${slot.time.simpleFormatTime()}: *Слот пропущен ${slot.user}*"
                         else -> "- Эта строчка не должна здесь быть..."
                     }
@@ -504,6 +506,9 @@ suspend fun BotContext.notifyAboutForgottenSuggestions(force: Boolean = false, c
                         TgTextOutput("Пост ждёт обработки, создан $hoursSinceCreated часов назад"),
                         replyMessageId = suggestion.editorMessageId
                     )
+                    if (forgotten % 10 == 0) {
+                        delay(500)
+                    }
                     forgotten++
                 }
             }
@@ -531,8 +536,16 @@ private suspend fun BotContext.postScheduledSuggestions(footerMd: String): Int {
             suggestionStore.removeByChatAndMessageId(suggestion.authorChatId, suggestion.authorMessageId, byAuthor = true)
             scheduled++
             if (settings[SEND_PROMOTION_FEEDBACK].toBoolean()) {
-                tgMessageSender.sendChatMessage(suggestion.authorChatId.toString(),
-                    TgTextOutput(UserMessages.postPromotedMessage.format(suggestion.postTextTeaser())))
+                try {
+                    tgMessageSender.sendChatMessage(suggestion.authorChatId.toString(),
+                        TgTextOutput(UserMessages.postPromotedMessage.format(suggestion.postTextTeaser().escapeMarkdown())))
+                } catch (e: ClientRequestException) {
+                    if (e.response.status == HttpStatusCode.Forbidden) {
+                        logger.info("Skipping promotion feedback for user ${suggestion.authorName} (${suggestion.authorChatId}): FORBIDDEN")
+                    } else {
+                        throw e
+                    }
+                }
             }
             logger.info("Posted scheduled post '${suggestion.postTextTeaser()}' from ${suggestion.authorName}")
         }
@@ -540,16 +553,16 @@ private suspend fun BotContext.postScheduledSuggestions(footerMd: String): Int {
     return scheduled
 }
 
-private suspend inline fun <T> BotContext.doNotThrow(message: String, block: () -> T?): T? = try {
+suspend inline fun <T> BotContext.doNotThrow(message: String, block: () -> T?): T? = try {
     block()
 } catch (e: Exception) {
     val stack = e.stackTrace
-    .filter { it.className.startsWith("com.tgbt") }
-        .joinToString("\n") { "> ${it.className}.${it.methodName}(${it.lineNumber})" }
+    .filter { it.className.contains("com.tgbt") }
+        .joinToString("\n") { "${it.className.replace("com.tgbt", "")}.${it.methodName}(${it.lineNumber})" }
     val response = (e as? ClientRequestException)?.response
     val clientError = response?.content?.readUTF8Line() ?: e.message
     val textParameter = (response?.let { it.request.url.parameters["text"] ?: "" } ?: "").trimToLength(400, "|<- truncated")
-    val markdownText = "$message, please check logs, error message:\n`$clientError`\n\nText parameter (first 400 chars): `$textParameter`\n\nStacktrace:\n`$stack`"
+    val markdownText = "$message, please check logs, error message:\n`$clientError`\n\nText parameter (first 400 chars): `$textParameter`\n\nStacktrace:\n`${if (stack.isBlank()) "<none>" else stack}`"
     logger.error(markdownText, e)
     val output = TgTextOutput(markdownText)
     ownerIds.forEach { tgMessageSender.sendChatMessage(it, output) }

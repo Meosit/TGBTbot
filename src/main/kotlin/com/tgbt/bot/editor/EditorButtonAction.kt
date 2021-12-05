@@ -2,6 +2,8 @@ package com.tgbt.bot.editor
 
 import com.tgbt.bot.BotContext
 import com.tgbt.bot.user.UserMessages
+import com.tgbt.doNotThrow
+import com.tgbt.misc.escapeMarkdown
 import com.tgbt.misc.simpleFormatTime
 import com.tgbt.post.TgPreparedPost
 import com.tgbt.sendTelegramPost
@@ -12,6 +14,8 @@ import com.tgbt.suggestion.authorReference
 import com.tgbt.suggestion.postTextTeaser
 import com.tgbt.telegram.*
 import com.tgbt.telegram.output.TgTextOutput
+import io.ktor.client.features.*
+import io.ktor.http.*
 import org.slf4j.LoggerFactory
 import java.sql.Timestamp
 import java.time.Duration
@@ -55,7 +59,7 @@ object EditorButtonAction {
         )
     ))
 
-    suspend fun handleActionCallback(bot: BotContext, callback: CallbackQuery) = with(bot) {
+    suspend fun handleActionCallback(bot: BotContext, callback: CallbackQuery): Unit = with(bot) {
         if (callback.data == DELETED_DATA) {
             tgMessageSender.pingCallbackQuery(callback.id)
             return
@@ -109,17 +113,25 @@ object EditorButtonAction {
         message: Message,
         callback: CallbackQuery,
         rejectComment: String? = null
-    ) {
+    ) = doNotThrow("Failed to send rejected port") {
         if (suggestion?.editorChatId != null && suggestion.editorMessageId != null) {
             val actuallyDeleted = suggestionStore.removeByChatAndMessageId(suggestion.editorChatId, suggestion.editorMessageId, byAuthor = false)
             if (actuallyDeleted) {
                 if (settings[Setting.SEND_DELETION_FEEDBACK].toBoolean()) {
                     val outputMessage = if (rejectComment != null) {
-                        UserMessages.postDiscardedWithCommentMessage.format(suggestion.postTextTeaser(), rejectComment)
+                        UserMessages.postDiscardedWithCommentMessage.format(suggestion.postTextTeaser().escapeMarkdown(), rejectComment.escapeMarkdown())
                     } else {
-                        UserMessages.postDiscardedMessage.format(suggestion.postTextTeaser())
+                        UserMessages.postDiscardedMessage.format(suggestion.postTextTeaser().escapeMarkdown())
                     }
-                    tgMessageSender.sendChatMessage(suggestion.authorChatId.toString(), TgTextOutput(outputMessage))
+                    try {
+                        tgMessageSender.sendChatMessage(suggestion.authorChatId.toString(), TgTextOutput(outputMessage))
+                    } catch (e: ClientRequestException) {
+                        if (e.response.status == HttpStatusCode.Forbidden) {
+                            logger.info("Skipping deletion feedback for user ${suggestion.authorName} (${suggestion.authorChatId}): FORBIDDEN")
+                        } else {
+                            throw e
+                        }
+                    }
                 }
                 val commentMark = if (rejectComment != null) " c \uD83D\uDCAC" else ""
                 sendDeletedConfirmation(message, callback,
@@ -139,7 +151,7 @@ object EditorButtonAction {
         callback: CallbackQuery,
         message: Message,
         anonymous: Boolean
-    ) {
+    ) = doNotThrow("Failed to schedule suggestion") {
         val prefix = if (anonymous) SCHEDULE_POST_ANONYMOUSLY_DATA else SCHEDULE_POST_PUBLICLY_DATA
         val status = if (anonymous) SuggestionStatus.SCHEDULE_ANONYMOUSLY else SuggestionStatus.SCHEDULE_PUBLICLY
         val confirm = if (anonymous) CONFIRM_POST_ANONYMOUSLY_DATA else CONFIRM_POST_PUBLICLY_DATA
@@ -169,7 +181,7 @@ object EditorButtonAction {
         message: Message,
         callback: CallbackQuery,
         anonymous: Boolean
-    ) {
+    ) = doNotThrow("Failed to post suggestion") {
         if (suggestion?.editorChatId != null && suggestion.editorMessageId != null) {
             val channel = settings[Setting.TARGET_CHANNEL]
             val footerMd = settings[Setting.FOOTER_MD]
@@ -182,8 +194,16 @@ object EditorButtonAction {
             val emoji = if (anonymous) "✅" else "☑️"
             sendDeletedConfirmation(message, callback, "$emoji Опубликован ${callback.userRef()} в ${Instant.now().simpleFormatTime()} $emoji")
             if (settings[Setting.SEND_PROMOTION_FEEDBACK].toBoolean()) {
-                tgMessageSender.sendChatMessage(suggestion.authorChatId.toString(),
-                    TgTextOutput(UserMessages.postPromotedMessage.format(suggestion.postTextTeaser())))
+                try {
+                    tgMessageSender.sendChatMessage(suggestion.authorChatId.toString(),
+                        TgTextOutput(UserMessages.postPromotedMessage.format(suggestion.postTextTeaser()).escapeMarkdown()))
+                } catch (e: ClientRequestException) {
+                    if (e.response.status == HttpStatusCode.Forbidden) {
+                        logger.info("Skipping promotion feedback for user ${suggestion.authorName} (${suggestion.authorChatId}): FORBIDDEN")
+                    } else {
+                        throw e
+                    }
+                }
             }
             logger.info("Editor ${message.from?.simpleRef} promoted post '${suggestion.postTextTeaser()}' from ${suggestion.authorName}")
         } else {
