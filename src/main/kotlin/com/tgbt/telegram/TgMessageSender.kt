@@ -76,4 +76,11 @@ class TgMessageSender(private val httpClient: HttpClient, apiToken: String) {
         }
     }
 
+    suspend fun leaveGroup(chatId: String) {
+        httpClient.post<String> {
+            url("$apiUrl/leaveChat")
+            parameter("chat_id", chatId)
+        }
+    }
+
 }

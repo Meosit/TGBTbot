@@ -87,7 +87,10 @@ data class MessageContext(
                 else -> logger.info("Ignored editors chat message")
             }
         }
-        else -> bot.ownerIds.forEach { bot.tgMessageSender.sendChatMessage(it, TgTextOutput("Bot added in non-editors chat! Message dump:\n```$message```")) }
+        else -> {
+            bot.ownerIds.forEach { bot.tgMessageSender.sendChatMessage(it, TgTextOutput("Bot added in non-editors chat! Message dump:\n```$message```")) }
+            bot.tgMessageSender.leaveGroup(chatId)
+        }
     }
 
     companion object {
