@@ -12,7 +12,7 @@ object SettingsCommand : BotCommand {
     override suspend fun MessageContext.handle() {
         bot.tgMessageSender.sendChatMessage(
             chatId,
-            TgTextOutput(Setting.values().joinToString("\n") { "${it.name}: ${bot.settings[it]}".escapeMarkdown() }),
+            TgTextOutput(Setting.values().joinToString("\n") { "${it.name}: ${bot.settings.str(it)}".escapeMarkdown() }),
             disableLinkPreview = true
         )
     }

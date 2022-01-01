@@ -27,9 +27,12 @@ For user suggestions forwarding:
 /clean\_old\_suggestions `<days>` - delete suggestion from DB which older than provided amount of days
 
 For VK freeze timeout notifications (when no new posts appear):
-/send\_freeze\_status `<true|false>` - send additional notification in owner bot chat for every schedule freeze  
+/notify\_freeze\_timeout `<true|false>` - switch for sending freeze notifications by timeout
+/notify\_freeze\_schedule `<true|false>` - switch for sending freeze notifications by schedule miss  
+/send\_freeze\_status `<true|false>` - send additional notification in owner bot chat for every schedule or timeout miss  
 /vk\_freeze\_timeout `<minutes>` - if no VK posts after this timeout appear in VK, send notification. Note that there is a possible delay of VK check period.
 /vk\_freeze\_mentions `<tg mentions>`- basically a free text to be added to each notification, to mention responsible people. 
+/send\_freeze\_personal\_notifications `<true|false>` - switch for sending personal freeze notifications for schedule errors
 /vk\_schedule `<vk schedule>`- a list of schedule items in format `00:00 <@nickname|text>`, each on a new line
 /vk\_schedule\_error `<minutes>` - period around a schedule slot when no notification sent
 /last\_day\_schedule - print schedule along with missed slots for the last day

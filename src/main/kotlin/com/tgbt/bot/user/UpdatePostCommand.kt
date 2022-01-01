@@ -27,8 +27,8 @@ class UpdatePostCommand(private val suggestion: UserSuggestion) : PostCommand() 
 
     override suspend fun MessageContext.handle(): Unit = with(bot) {
         val diffMinutes = ChronoUnit.MINUTES.between(suggestion.insertedTime.toInstant(), Instant.now())
-        val editTimeMinutes = settings[Setting.USER_EDIT_TIME_MINUTES].toLong()
-        val suggestionDelayMinutes = settings[Setting.USER_SUGGESTION_DELAY_MINUTES].toLong()
+        val editTimeMinutes = settings.long(Setting.USER_EDIT_TIME_MINUTES)
+        val suggestionDelayMinutes = settings.long(Setting.USER_SUGGESTION_DELAY_MINUTES)
         logger.info("Updating post, minutes after insert: $diffMinutes")
         when {
             diffMinutes >= suggestionDelayMinutes && !isEdit -> {

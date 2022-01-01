@@ -50,5 +50,5 @@ object VkScheduleCommand : BotCommand {
         .filterNotNull()
         .toList()
 
-    fun parseSchedule(settings: Settings) = parseSchedule(settings[Setting.VK_SCHEDULE])
+    fun parseSchedule(settings: Settings) = parseSchedule(settings.str(Setting.VK_SCHEDULE))
 }

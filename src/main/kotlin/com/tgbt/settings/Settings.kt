@@ -14,7 +14,11 @@ class Settings(private val store: SettingStore) {
         }
     }
 
-    operator fun get(key: Setting): String = settings.get().getValue(key.name)
+    fun str(key: Setting): String = settings.get().getValue(key.name)
+
+    fun bool(key: Setting): Boolean = settings.get().getOrDefault(key.name, "false").toBoolean()
+    fun int(key: Setting): Int = settings.get().getValue(key.name).toInt()
+    fun long(key: Setting): Long = settings.get().getValue(key.name).toLong()
 
     fun putIfAbsent(key: Setting, value: String) {
         synchronized(this) {

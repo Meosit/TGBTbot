@@ -62,7 +62,7 @@ data class MessageContext(
         }
         message.chat.isPrivate -> {
             val command = USER_COMMANDS.find { it.canHandle(messageText) }
-            command?.handleCommand(this) ?: if (bot.settings[SUGGESTIONS_ENABLED].toBoolean()) {
+            command?.handleCommand(this) ?: if (bot.settings.bool(SUGGESTIONS_ENABLED)) {
                 val suggestion = bot.suggestionStore.findLastByAuthorChatId(message.chat.id)
                 if (suggestion == null) {
                     AddPostCommand.handleCommand(this)
@@ -73,7 +73,7 @@ data class MessageContext(
                 bot.tgMessageSender.sendChatMessage(chatId, TgTextOutput(UserMessages.suggestionsDisabledErrorMessage))
             }
         }
-        bot.settings[EDITOR_CHAT_ID] == chatId -> {
+        bot.settings.str(EDITOR_CHAT_ID) == chatId -> {
             val command = EDITOR_COMMANDS.find { it.canHandle(messageText) }
             when {
                 command != null -> command.handleCommand(this)
@@ -124,6 +124,8 @@ data class MessageContext(
             VkFreezeTimeoutCommand,
             VkScheduleCommand,
             VkScheduleErrorCommand,
+            NotifyFreezeTimeoutCommand,
+            NotifyFreezeScheduleCommand,
             SendFreezeStatusCommand,
             LastDayScheduleCommand,
             LastDayMissedCommand

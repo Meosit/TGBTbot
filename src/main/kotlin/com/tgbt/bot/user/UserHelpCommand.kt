@@ -12,6 +12,9 @@ object UserHelpCommand: BotCommand {
     override suspend fun MessageContext.handle() {
         bot.tgMessageSender
             .sendChatMessage(chatId, TgTextOutput(helpMessage
-                .format(bot.settings[Setting.USER_EDIT_TIME_MINUTES], bot.settings[Setting.USER_SUGGESTION_DELAY_MINUTES])))
+                .format(
+                    bot.settings.str(Setting.USER_EDIT_TIME_MINUTES),
+                    bot.settings.str(Setting.USER_SUGGESTION_DELAY_MINUTES)
+                )))
     }
 }

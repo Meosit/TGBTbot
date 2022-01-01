@@ -59,7 +59,7 @@ class EditorUpdatePostCommand(private val suggestion: UserSuggestion): PostComma
         }
         if (updatedSuggestion != null) {
             val post = TgPreparedPost(updatedSuggestion.postText, updatedSuggestion.imageId,
-                settings[Setting.FOOTER_MD], suggestion.authorReference(false))
+                settings.str(Setting.FOOTER_MD), suggestion.authorReference(false))
             updateTelegramPost(replyMessage, post)
         }
     }

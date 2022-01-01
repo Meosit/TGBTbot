@@ -117,7 +117,7 @@ object EditorButtonAction {
         if (suggestion?.editorChatId != null && suggestion.editorMessageId != null) {
             val actuallyDeleted = suggestionStore.removeByChatAndMessageId(suggestion.editorChatId, suggestion.editorMessageId, byAuthor = false)
             if (actuallyDeleted) {
-                if (settings[Setting.SEND_DELETION_FEEDBACK].toBoolean()) {
+                if (settings.bool(Setting.SEND_DELETION_FEEDBACK)) {
                     val outputMessage = if (rejectComment != null) {
                         UserMessages.postDiscardedWithCommentMessage.format(suggestion.postTextTeaser().escapeMarkdown(), rejectComment.escapeMarkdown())
                     } else {
@@ -183,8 +183,8 @@ object EditorButtonAction {
         anonymous: Boolean
     ) = doNotThrow("Failed to post suggestion") {
         if (suggestion?.editorChatId != null && suggestion.editorMessageId != null) {
-            val channel = settings[Setting.TARGET_CHANNEL]
-            val footerMd = settings[Setting.FOOTER_MD]
+            val channel = settings.str(Setting.TARGET_CHANNEL)
+            val footerMd = settings.str(Setting.FOOTER_MD)
             val post = TgPreparedPost(
                 suggestion.postText, suggestion.imageId, footerMarkdown = footerMd,
                 suggestionReference = suggestion.authorReference(anonymous)
@@ -193,7 +193,7 @@ object EditorButtonAction {
             suggestionStore.removeByChatAndMessageId(suggestion.editorChatId, suggestion.editorMessageId, byAuthor = false)
             val emoji = if (anonymous) "✅" else "☑️"
             sendDeletedConfirmation(message, callback, "$emoji Опубликован ${callback.userRef()} в ${Instant.now().simpleFormatTime()} $emoji")
-            if (settings[Setting.SEND_PROMOTION_FEEDBACK].toBoolean()) {
+            if (settings.bool(Setting.SEND_PROMOTION_FEEDBACK)) {
                 try {
                     tgMessageSender.sendChatMessage(suggestion.authorChatId.toString(),
                         TgTextOutput(UserMessages.postPromotedMessage.format(suggestion.postTextTeaser()).escapeMarkdown()))

@@ -36,8 +36,8 @@ object AddPostCommand: PostCommand() {
                     logger.info("User ${message.verboseUserName} tried to add duplicate post: '${suggestion.postTextTeaser()}'")
                 } else {
                     if (bot.suggestionStore.insert(suggestion)) {
-                        val editTimeMinutes = bot.settings[Setting.USER_EDIT_TIME_MINUTES].toLong()
-                        val suggestionDelayMinutes = bot.settings[Setting.USER_SUGGESTION_DELAY_MINUTES].toLong()
+                        val editTimeMinutes = bot.settings.long(Setting.USER_EDIT_TIME_MINUTES)
+                        val suggestionDelayMinutes = bot.settings.long(Setting.USER_SUGGESTION_DELAY_MINUTES)
                         bot.tgMessageSender.sendChatMessage(chatId, TgTextOutput(successMessage.format(editTimeMinutes, suggestionDelayMinutes)))
                         logger.info("NEW SUGGESTION from ${message.verboseUserName}: '${suggestion.postTextTeaser()}'")
                     }

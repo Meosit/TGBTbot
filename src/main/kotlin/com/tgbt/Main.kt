@@ -132,7 +132,7 @@ fun Application.main() {
         do {
             try {
                 botContext.forwardVkPosts()
-                val delayMinutes = settings[CHECK_PERIOD_MINUTES].toLong()
+                val delayMinutes = settings.long(CHECK_PERIOD_MINUTES)
                 logger.info("Next post forward check after $delayMinutes minutes")
                 val delayMillis = TimeUnit.MINUTES.toMillis(delayMinutes)
                 selfPing(httpClient, appUrl)
@@ -153,7 +153,7 @@ fun Application.main() {
         do {
             try {
                 botContext.forwardSuggestions()
-                val delayMinutes = settings[SUGGESTION_POLLING_DELAY_MINUTES].toLong()
+                val delayMinutes = settings.long(SUGGESTION_POLLING_DELAY_MINUTES)
                 logger.info("Next suggestion polling after $delayMinutes minutes")
                 val delayMillis = TimeUnit.MINUTES.toMillis(delayMinutes)
                 selfPing(httpClient, appUrl)
@@ -180,9 +180,9 @@ private suspend fun selfPing(httpClient: HttpClient, appUrl: String) {
 
 suspend fun BotContext.sendLastDaySchedule(onlyMissed: Boolean = false) {
     doNotThrow("Failed to send last 24 hours schedule to TG") {
-        val communityId = settings[VK_COMMUNITY_ID].toLong()
+        val communityId = settings.long(VK_COMMUNITY_ID)
         val schedule = VkScheduleCommand.parseSchedule(settings)
-        val slotError = settings[VK_SCHEDULE_ERROR_MINUTES].toLong()
+        val slotError = settings.long(VK_SCHEDULE_ERROR_MINUTES)
         val now = zonedNow()
 
         val last24hoursPosts = vkPostLoader
@@ -215,19 +215,21 @@ suspend fun BotContext.sendLastDaySchedule(onlyMissed: Boolean = false) {
 }
 
 suspend fun BotContext.forwardVkPosts(forcedByOwner: Boolean = false) {
-    val enabled = settings[FORWARDING_ENABLED].toBoolean()
+    val enabled = settings.bool(FORWARDING_ENABLED)
     if (enabled) {
         logger.info("Checking for new posts")
-        val postsCount = settings[POST_COUNT_TO_LOAD].toInt()
-        val condition = json.decodeFromString(Expr.serializer(), settings[CONDITION_EXPR])
-        val communityId = settings[VK_COMMUNITY_ID].toLong()
-        val footerMd = settings[FOOTER_MD]
-        val sendStatus = settings[SEND_STATUS].toBoolean()
-        val targetChannel = settings[TARGET_CHANNEL]
-        val vkFreezeTimeout = settings[VK_FREEZE_TIMEOUT_MINUTES].toInt()
-        val vkFreezeMentions = settings[VK_FREEZE_MENTIONS]
-        val vkFreezeSendStatus = settings[SEND_FREEZE_STATUS].toBoolean()
-        val editorsChatId = settings[EDITOR_CHAT_ID]
+        val postsCount = settings.int(POST_COUNT_TO_LOAD)
+        val condition = json.decodeFromString(Expr.serializer(), settings.str(CONDITION_EXPR))
+        val communityId = settings.long(VK_COMMUNITY_ID)
+        val footerMd = settings.str(FOOTER_MD)
+        val sendStatus = settings.bool(SEND_STATUS)
+        val targetChannel = settings.str(TARGET_CHANNEL)
+        val vkFreezeTimeout = settings.int(VK_FREEZE_TIMEOUT_MINUTES)
+        val vkFreezeMentions = settings.str(VK_FREEZE_MENTIONS)
+        val vkFreezeNotifyTimeout = settings.bool(NOTIFY_FREEZE_TIMEOUT)
+        val vkFreezeNotifySchedule = settings.bool(NOTIFY_FREEZE_SCHEDULE)
+        val vkFreezeSendStatus = settings.bool(SEND_FREEZE_STATUS)
+        val editorsChatId = settings.str(EDITOR_CHAT_ID)
 
         val stats = mutableMapOf<String, Int>()
         val lastPosts: MutableList<Post> = mutableListOf()
@@ -296,7 +298,7 @@ suspend fun BotContext.forwardVkPosts(forcedByOwner: Boolean = false) {
         }
         doNotThrow("Failed to send freeze notification") {
             val freeze = stats["freeze"] ?: 0
-            val slotError = settings[VK_SCHEDULE_ERROR_MINUTES].toLong()
+            val slotError = settings.long(VK_SCHEDULE_ERROR_MINUTES)
             val latestSlotTime = zonedNow().minusMinutes(min(freeze.toLong() - 1, slotError)).toLocalTime()
             val oldestPostTime = lastPosts.last().localTime
             val schedule = VkScheduleCommand.parseSchedule(settings)
@@ -314,16 +316,14 @@ suspend fun BotContext.forwardVkPosts(forcedByOwner: Boolean = false) {
             if (latestSchedule.last().second == null && freeze < vkFreezeTimeout) {
                 val slot = latestSchedule.last().first
                 val post = latestSchedule.findLast { it.second != null }?.second
-                if (slot != null && post != null) {
+                if (vkFreezeNotifySchedule && slot != null && post != null) {
                     val message = generateSlotMissingMessage(slot.time.simpleFormatTime(), slot.user, post.localTime.simpleFormatTime(), freeze)
                     tgMessageSender.sendChatMessage(editorsChatId, TgTextOutput(message), disableLinkPreview = true)
-                    if (vkFreezeSendStatus) {
-                        ownerIds.forEach { tgMessageSender.sendChatMessage(it, TgTextOutput(message), disableLinkPreview = true) }
-                    }
+                    if (vkFreezeSendStatus) ownerIds.forEach { tgMessageSender.sendChatMessage(it, TgTextOutput(message), disableLinkPreview = true) }
                 }
             }
 
-            val checkPeriod = settings[CHECK_PERIOD_MINUTES].toInt()
+            val checkPeriod = settings.int(CHECK_PERIOD_MINUTES)
             if (freeze in vkFreezeTimeout..(vkFreezeTimeout + checkPeriod * 5)) {
                 logger.info("More than $freeze minutes since last VK post, alerting...")
                 val message = latestSchedule.joinToString(
@@ -339,16 +339,14 @@ suspend fun BotContext.forwardVkPosts(forcedByOwner: Boolean = false) {
                         else -> "- Эта строчка не должна здесь быть..."
                     }
                 }
-                tgMessageSender.sendChatMessage(editorsChatId, TgTextOutput(message), disableLinkPreview = true)
-                if (vkFreezeSendStatus) {
-                    ownerIds.forEach { tgMessageSender.sendChatMessage(it, TgTextOutput(message), disableLinkPreview = true) }
-                }
+                if (vkFreezeNotifyTimeout) tgMessageSender.sendChatMessage(editorsChatId, TgTextOutput(message), disableLinkPreview = true)
+                if (vkFreezeSendStatus) ownerIds.forEach { tgMessageSender.sendChatMessage(it, TgTextOutput(message), disableLinkPreview = true) }
             }
 
         }
 
         doNotThrow("Failed to clean up old posts from TG") {
-            val retentionDays = settings[RETENTION_PERIOD_DAYS].toInt()
+            val retentionDays = settings.int(RETENTION_PERIOD_DAYS)
             logger.info("Deleting posts created more than $retentionDays days ago")
             val deleted = postStore.cleanupOldPosts(retentionDays)
             logger.info("Deleted $deleted posts created more than $retentionDays days ago")
@@ -425,14 +423,14 @@ private fun generateSlotMissingMessage(slotTime: String, user: String, lastPostT
 
 
 suspend fun BotContext.forwardSuggestions(forcedByOwner: Boolean = false) {
-    val targetChat = settings[EDITOR_CHAT_ID]
-    val suggestionsEnabled = settings[SUGGESTIONS_ENABLED].toBoolean()
-    val footerMd = settings[FOOTER_MD]
+    val targetChat = settings.str(EDITOR_CHAT_ID)
+    val suggestionsEnabled = settings.bool(SUGGESTIONS_ENABLED)
+    val footerMd = settings.str(FOOTER_MD)
     if (suggestionsEnabled) {
         logger.info("Checking for posts which are ready for suggestion")
         doNotThrow("Failed to change suggestions status PENDING_USER_EDIT -> READY_FOR_SUGGESTION") {
             val suggestions = suggestionStore.findByStatus(SuggestionStatus.PENDING_USER_EDIT)
-            val editTimeMinutes = settings[USER_EDIT_TIME_MINUTES].toLong()
+            val editTimeMinutes = settings.long(USER_EDIT_TIME_MINUTES)
             for (suggestion in suggestions) {
                 val diffMinutes = ChronoUnit.MINUTES.between(suggestion.insertedTime.toInstant(), Instant.now())
                 if (diffMinutes >= editTimeMinutes) {
@@ -473,7 +471,7 @@ suspend fun BotContext.forwardSuggestions(forcedByOwner: Boolean = false) {
                     "\nEditors forgot to review $forgotten posts." +
                     "\nPosted $scheduled scheduled posts."
             logger.info(message)
-            if (settings[SEND_SUGGESTION_STATUS].toBoolean()) {
+            if (settings.bool(SEND_SUGGESTION_STATUS)) {
                 ownerIds.forEach { tgMessageSender.sendChatMessage(it, TgTextOutput(message)) }
             }
         }
@@ -484,7 +482,7 @@ suspend fun BotContext.forwardSuggestions(forcedByOwner: Boolean = false) {
 
 suspend fun BotContext.notifyAboutForgottenSuggestions(force: Boolean = false, createdBeforeHours: Int = 0): Int {
     val start = LocalTime.of(0, 0, 0, 0)
-    val end = LocalTime.of(0, settings[SUGGESTION_POLLING_DELAY_MINUTES].toInt(), 0, 0)
+    val end = LocalTime.of(0, settings.int(SUGGESTION_POLLING_DELAY_MINUTES), 0, 0)
     val now = zonedNow().toLocalTime()
     var forgotten = 0
     if (force || (now in start..end)) {
@@ -518,7 +516,7 @@ suspend fun BotContext.notifyAboutForgottenSuggestions(force: Boolean = false, c
 }
 
 private suspend fun BotContext.postScheduledSuggestions(footerMd: String): Int {
-    val targetChannel = settings[TARGET_CHANNEL]
+    val targetChannel = settings.str(TARGET_CHANNEL)
     var scheduled = 0
     val suggestions = doNotThrow("Failed to fetch scheduled suggestions from DB") {
         suggestionStore.findReadyForSchedule()
@@ -535,7 +533,7 @@ private suspend fun BotContext.postScheduledSuggestions(footerMd: String): Int {
             sendTelegramPost(targetChannel, post)
             suggestionStore.removeByChatAndMessageId(suggestion.authorChatId, suggestion.authorMessageId, byAuthor = true)
             scheduled++
-            if (settings[SEND_PROMOTION_FEEDBACK].toBoolean()) {
+            if (settings.bool(SEND_PROMOTION_FEEDBACK)) {
                 try {
                     tgMessageSender.sendChatMessage(suggestion.authorChatId.toString(),
                         TgTextOutput(UserMessages.postPromotedMessage.format(suggestion.postTextTeaser().escapeMarkdown())))
@@ -561,8 +559,8 @@ suspend inline fun <T> BotContext.doNotThrow(message: String, block: () -> T?): 
         .joinToString("\n") { "${it.className.replace("com.tgbt", "")}.${it.methodName}(${it.lineNumber})" }
     val response = (e as? ClientRequestException)?.response
     val clientError = response?.content?.readUTF8Line() ?: e.message
-    val textParameter = (response?.let { it.request.url.parameters["text"] ?: "" } ?: "").trimToLength(400, "|<- truncated")
-    val markdownText = "$message, please check logs, error message:\n`$clientError`\n\nText parameter (first 400 chars): `$textParameter`\n\nStacktrace:\n`${if (stack.isBlank()) "<none>" else stack}`"
+    val textParameter = (response?.let { it.request.url.parameters["text"].orEmpty() }.orEmpty()).trimToLength(400, "|<- truncated")
+    val markdownText = "$message, please check logs, error message:\n`$clientError`\n\nText parameter (first 400 chars): `${textParameter.ifBlank { "<none>" }}`\n\nStacktrace:\n`${stack.ifBlank { "<none>" }}`"
     logger.error(markdownText, e)
     val output = TgTextOutput(markdownText)
     ownerIds.forEach { tgMessageSender.sendChatMessage(it, output) }
@@ -570,7 +568,7 @@ suspend inline fun <T> BotContext.doNotThrow(message: String, block: () -> T?): 
 }
 
 suspend fun BotContext.sendTelegramPost(targetChat: String, prepared: TgPreparedPost, keyboardMarkup: InlineKeyboardMarkup? = null): Message? {
-    val usePhotoMode = settings[USE_PHOTO_MODE].toBoolean()
+    val usePhotoMode = settings.bool(USE_PHOTO_MODE)
     val keyboardJson = keyboardMarkup?.let { json.encodeToString(InlineKeyboardMarkup.serializer(), keyboardMarkup) }
     return when {
         usePhotoMode && prepared.canBeSendAsImageWithCaption -> tgMessageSender
@@ -645,6 +643,8 @@ private fun insertDefaultSettings(settings: Settings, json: Json) = with(setting
     putIfAbsent(SEND_PROMOTION_FEEDBACK, "true")
     putIfAbsent(SEND_DELETION_FEEDBACK, "true")
     putIfAbsent(SEND_SUGGESTION_STATUS, "true")
+    putIfAbsent(NOTIFY_FREEZE_TIMEOUT, "true")
+    putIfAbsent(NOTIFY_FREEZE_SCHEDULE, "true")
     putIfAbsent(VK_FREEZE_TIMEOUT_MINUTES, "90")
     putIfAbsent(VK_FREEZE_MENTIONS, "anon")
     putIfAbsent(VK_SCHEDULE, "5:00 Улиточка")

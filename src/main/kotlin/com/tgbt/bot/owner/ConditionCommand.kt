@@ -19,7 +19,7 @@ object ConditionCommand : BotCommand {
             is Parsed -> {
                 val exprJson = json.encodeToString(Expr.serializer(), maybeExpr.value)
                 settings[Setting.CONDITION_EXPR] = exprJson
-                val markdownText = if (exprJson == settings[Setting.CONDITION_EXPR])
+                val markdownText = if (exprJson == settings.str(Setting.CONDITION_EXPR))
                     "Condition updated successfully" else "Failed to save condition to database"
                 tgMessageSender.sendChatMessage(chatId, TgTextOutput(markdownText), message.id)
             }

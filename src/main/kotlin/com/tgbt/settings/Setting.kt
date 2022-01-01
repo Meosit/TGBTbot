@@ -12,6 +12,8 @@ enum class Setting {
     FOOTER_MD,
     SEND_STATUS,
     // VK freeze notifications
+    NOTIFY_FREEZE_TIMEOUT,
+    NOTIFY_FREEZE_SCHEDULE,
     VK_FREEZE_TIMEOUT_MINUTES,
     SEND_FREEZE_STATUS,
     VK_FREEZE_MENTIONS,
