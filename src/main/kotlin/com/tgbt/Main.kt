@@ -1,5 +1,6 @@
 package com.tgbt
 
+import com.tgbt.ban.BanStore
 import com.tgbt.bot.BotContext
 import com.tgbt.bot.MessageContext
 import com.tgbt.bot.editor.EditorButtonAction
@@ -88,6 +89,7 @@ fun Application.main() {
 
     val postStore = PostStore()
     val suggestionStore = SuggestionStore()
+    val banStore = BanStore()
     val settings = Settings(SettingStore())
     insertDefaultSettings(settings, json)
 
@@ -95,7 +97,7 @@ fun Application.main() {
     val telegraphPostCreator = TelegraphPostCreator(httpClient, json, telegraphApiToken)
     val vkPostLoader = VkPostLoader(httpClient, vkServiceToken)
 
-    val botContext = BotContext(json, ownerIds, postStore, suggestionStore, settings, tgMessageSender, telegraphPostCreator, vkPostLoader)
+    val botContext = BotContext(json, ownerIds, postStore, suggestionStore, banStore, settings, tgMessageSender, telegraphPostCreator, vkPostLoader)
 
     install(Routing) {
         post("/handle/$tgBotToken") {

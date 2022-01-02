@@ -1,5 +1,6 @@
 package com.tgbt.bot
 
+import com.tgbt.ban.BanStore
 import com.tgbt.post.PostStore
 import com.tgbt.settings.Settings
 import com.tgbt.suggestion.SuggestionStore
@@ -13,6 +14,7 @@ data class BotContext(
     val ownerIds: List<String>,
     val postStore: PostStore,
     val suggestionStore: SuggestionStore,
+    val banStore: BanStore,
     val settings: Settings,
     val tgMessageSender: TgMessageSender,
     val telegraphPostCreator: TelegraphPostCreator,

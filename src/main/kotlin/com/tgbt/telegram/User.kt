@@ -1,5 +1,6 @@
 package com.tgbt.telegram
 
+import com.tgbt.misc.escapeMarkdown
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -14,7 +15,7 @@ data class User(
 )
 
 val User.verboseUserName: String get() =
-    username?.let { "@$it" } ?: "[$firstName${lastName?.let { " $it" } ?: ""}](tg://user?id=$id)"
+    username?.let { "@$it" } ?: "[${firstName.escapeMarkdown()}${lastName?.escapeMarkdown()?.let { " $it" } ?: ""}](tg://user?id=$id)"
 
 val User.simpleRef: String get() =
-    username?.let { "@$it" } ?: firstName
+    username?.let { "@$it" } ?: firstName.escapeMarkdown()

@@ -3,6 +3,7 @@ package com.tgbt.bot
 import com.tgbt.bot.editor.EditorHelpCommand
 import com.tgbt.bot.editor.EditorUpdatePostCommand
 import com.tgbt.bot.editor.ForgottenPostsCommand
+import com.tgbt.bot.editor.UnbanCommand
 import com.tgbt.bot.owner.*
 import com.tgbt.bot.user.*
 import com.tgbt.misc.escapeMarkdown
@@ -62,15 +63,21 @@ data class MessageContext(
         }
         message.chat.isPrivate -> {
             val command = USER_COMMANDS.find { it.canHandle(messageText) }
-            command?.handleCommand(this) ?: if (bot.settings.bool(SUGGESTIONS_ENABLED)) {
-                val suggestion = bot.suggestionStore.findLastByAuthorChatId(message.chat.id)
-                if (suggestion == null) {
-                    AddPostCommand.handleCommand(this)
+            val ban = bot.banStore.findByChatId(message.chat.id)
+            if (ban == null) {
+                command?.handleCommand(this) ?: if (bot.settings.bool(SUGGESTIONS_ENABLED)) {
+                    val suggestion = bot.suggestionStore.findLastByAuthorChatId(message.chat.id)
+                    if (suggestion == null) {
+                        AddPostCommand.handleCommand(this)
+                    } else {
+                        UpdatePostCommand(suggestion).handleCommand(this)
+                    }
                 } else {
-                    UpdatePostCommand(suggestion).handleCommand(this)
+                    bot.tgMessageSender.sendChatMessage(chatId, TgTextOutput(UserMessages.suggestionsDisabledErrorMessage))
                 }
             } else {
-                bot.tgMessageSender.sendChatMessage(chatId, TgTextOutput(UserMessages.suggestionsDisabledErrorMessage))
+                bot.tgMessageSender.sendChatMessage(chatId, TgTextOutput(UserMessages.bannedErrorMessage
+                    .format(ban.postTeaser.escapeMarkdown(), ban.reason.escapeMarkdown())))
             }
         }
         bot.settings.str(EDITOR_CHAT_ID) == chatId -> {
@@ -138,7 +145,8 @@ data class MessageContext(
 
         private val EDITOR_COMMANDS: List<BotCommand> = listOf(
             EditorHelpCommand,
-            ForgottenPostsCommand
+            ForgottenPostsCommand,
+            UnbanCommand,
         )
     }
 }

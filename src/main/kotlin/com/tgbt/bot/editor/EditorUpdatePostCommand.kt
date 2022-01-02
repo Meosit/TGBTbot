@@ -1,5 +1,6 @@
 package com.tgbt.bot.editor
 
+import com.tgbt.ban.UserBan
 import com.tgbt.bot.BotContext
 import com.tgbt.bot.MessageContext
 import com.tgbt.bot.user.PostCommand
@@ -40,11 +41,40 @@ class EditorUpdatePostCommand(private val suggestion: UserSuggestion): PostComma
                             val actuallyDeleted = suggestionStore.removeByChatAndMessageId(suggestion.editorChatId, suggestion.editorMessageId, byAuthor = false)
                             if (actuallyDeleted) {
                                 tgMessageSender.sendChatMessage(suggestion.authorChatId.toString(), TgTextOutput(UserMessages.postDiscardedWithCommentMessage
-                                    .format(suggestion.postTextTeaser(), value.escapeMarkdown())))
+                                    .format(suggestion.postTextTeaser().escapeMarkdown(), value.escapeMarkdown())))
                                 val keyboardJson = json.encodeToString(InlineKeyboardMarkup.serializer(),
                                     InlineKeyboardButton("❌ Удалён ${message.from?.simpleRef ?: "anon"} c \uD83D\uDCAC в ${Instant.now().simpleFormatTime()} ❌", EditorButtonAction.DELETED_DATA).toMarkup())
                                 tgMessageSender.editChatMessageKeyboard(suggestion.editorChatId.toString(), suggestion.editorMessageId, keyboardJson)
                                 logger.info("Editor ${message.from?.simpleRef} rejected post '${suggestion.postTextTeaser()}' from ${suggestion.authorName} with comment '$value'")
+                            }
+                        }
+                    }
+                }
+            }
+            messageText.startsWith("/ban") -> {
+                when (val comment = messageText.removePrefix("/ban").trim()) {
+                    "" -> tgMessageSender.sendChatMessage(chatId, TgTextOutput("Нужно указать причину блокировки"), message.id)
+                    else -> {
+                        if (suggestion.editorChatId != null && suggestion.editorMessageId != null) {
+                            if (banStore.findByChatId(suggestion.authorChatId) != null) {
+                                val ban = UserBan(
+                                    authorChatId = suggestion.authorChatId,
+                                    authorName = suggestion.authorName,
+                                    postTeaser = suggestion.postTextTeaser(),
+                                    reason = comment,
+                                    bannedBy = message.from?.simpleRef ?: "unknown"
+                                )
+                                banStore.insert(ban)
+                                logger.info("User ${ban.authorName} was banned by ${ban.bannedBy}")
+                            }
+                            val actuallyDeleted = suggestionStore.removeByChatAndMessageId(suggestion.editorChatId, suggestion.editorMessageId, byAuthor = false)
+                            if (actuallyDeleted) {
+                                tgMessageSender.sendChatMessage(suggestion.authorChatId.toString(), TgTextOutput(UserMessages.bannedErrorMessage
+                                    .format(suggestion.postTextTeaser().escapeMarkdown(), comment.escapeMarkdown())))
+                                val keyboardJson = json.encodeToString(InlineKeyboardMarkup.serializer(),
+                                    InlineKeyboardButton("❌ Забанен ${message.from?.simpleRef ?: "anon"} c \uD83D\uDCAC в ${Instant.now().simpleFormatTime()} ❌", EditorButtonAction.DELETED_DATA).toMarkup())
+                                tgMessageSender.editChatMessageKeyboard(suggestion.editorChatId.toString(), suggestion.editorMessageId, keyboardJson)
+                                logger.info("Editor ${message.from?.simpleRef} banned a user ${suggestion.authorName} because of post '${suggestion.postTextTeaser()}', comment '$comment'")
                             }
                         }
                     }
