@@ -56,7 +56,7 @@ class EditorUpdatePostCommand(private val suggestion: UserSuggestion): PostComma
                     "" -> tgMessageSender.sendChatMessage(chatId, TgTextOutput("Нужно указать причину блокировки"), message.id)
                     else -> {
                         if (suggestion.editorChatId != null && suggestion.editorMessageId != null) {
-                            if (banStore.findByChatId(suggestion.authorChatId) != null) {
+                            if (banStore.findByChatId(suggestion.authorChatId) == null) {
                                 val ban = UserBan(
                                     authorChatId = suggestion.authorChatId,
                                     authorName = suggestion.authorName,
