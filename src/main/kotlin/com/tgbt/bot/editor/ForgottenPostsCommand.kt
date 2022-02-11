@@ -10,8 +10,8 @@ object ForgottenPostsCommand : BotCommand {
 
     override suspend fun MessageContext.handle() {
         val threshold = messageText.removePrefix(command).trim().toIntOrNull()?.takeIf { it in 0..1000 } ?: 0
-        bot.notifyAboutForgottenSuggestions(force = true, createdBeforeHours = threshold)
-        bot.tgMessageSender.sendChatMessage(chatId, TgTextOutput("Проверка на забытые посты завершена"))
+        val forgotten = bot.notifyAboutForgottenSuggestions(force = true, createdBeforeHours = threshold)
+        bot.tgMessageSender.sendChatMessage(chatId, TgTextOutput("Проверка на забытые посты завершена, всего забытых постов: $forgotten"))
     }
 
 }

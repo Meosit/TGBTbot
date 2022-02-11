@@ -8,6 +8,7 @@ object UserMessages {
     val startMessage = loadResourceAsString("user/start.md")
     val unbannedMessage = loadResourceAsString("user/unbanned.md")
 
+    val postSuggestedMessage = loadResourceAsString("user/post.suggested.md")
     val postPromotedMessage = loadResourceAsString("user/post.promoted.md")
     val postDiscardedMessage = loadResourceAsString("user/post.discarded.md")
     val postDiscardedWithCommentMessage = loadResourceAsString("user/post.discarded.comment.md")

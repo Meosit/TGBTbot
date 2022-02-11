@@ -3,6 +3,7 @@ package com.tgbt.bot.user
 import com.tgbt.bot.BotCommand
 import com.tgbt.bot.MessageContext
 import com.tgbt.bot.user.UserMessages.startMessage
+import com.tgbt.settings.Setting
 import com.tgbt.telegram.output.TgTextOutput
 
 object UserStartCommand: BotCommand {
@@ -10,6 +11,6 @@ object UserStartCommand: BotCommand {
 
     override suspend fun MessageContext.handle() {
         bot.tgMessageSender
-            .sendChatMessage(chatId, TgTextOutput(startMessage))
+            .sendChatMessage(chatId, TgTextOutput(startMessage.format(bot.settings.str(Setting.GATEKEEPER))))
     }
 }

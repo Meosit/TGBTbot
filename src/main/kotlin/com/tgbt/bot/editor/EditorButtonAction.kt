@@ -5,6 +5,7 @@ import com.tgbt.bot.user.UserMessages
 import com.tgbt.doNotThrow
 import com.tgbt.misc.escapeMarkdown
 import com.tgbt.misc.simpleFormatTime
+import com.tgbt.misc.trimToLength
 import com.tgbt.post.TgPreparedPost
 import com.tgbt.sendTelegramPost
 import com.tgbt.settings.Setting
@@ -31,12 +32,19 @@ object EditorButtonAction {
         Duration.ofHours(2) to "2 часа",
         Duration.ofHours(4) to "4 часа",
         Duration.ofHours(6) to "6 часов",
-        Duration.ofHours(8) to "8 часов"
+        Duration.ofHours(8) to "8 часов",
+        Duration.ofHours(12) to "12 часов",
+        Duration.ofHours(16) to "16 часов",
+        Duration.ofHours(24) to "24 часа",
+        Duration.ofHours(48) to "48 часов",
     )
     private val rejectComments = mapOf(
-        "ddos" to "хватит это форсить",
-        "notfun" to "не смешно же",
-        "endfail" to "концовка слита"
+        "ddos" to "Хватит уже это форсить",
+        "notfun" to "Не смешно же",
+        "endfail" to "Концовка слита",
+        "format" to "Оформи нормально и перезалей",
+        "fck" to "Пошёл нахуй с такими бугуртами",
+        "pic" to "Прикрепи картинку и перезалей",
     )
     private const val DELETE_ACTION_DATA = "del"
     private const val DELETE_WITH_COMMENT_DATA = "del_comment_"
@@ -133,9 +141,9 @@ object EditorButtonAction {
                         }
                     }
                 }
-                val commentMark = if (rejectComment != null) " c \uD83D\uDCAC" else ""
+                val commentPreview = if (rejectComment != null) " \uD83D\uDCAC $rejectComment" else ""
                 sendDeletedConfirmation(message, callback,
-                    "❌ Удалён ${callback.userRef()}$commentMark в ${Instant.now().simpleFormatTime()} ❌")
+                    "❌ Удалён ${callback.userRef()} в ${Instant.now().simpleFormatTime()}$commentPreview ❌".trimToLength(512, "…"))
                 logger.info("Editor ${message.from?.simpleRef} rejected post '${suggestion.postTextTeaser()}' from ${suggestion.authorName} with comment '$rejectComment'")
             } else {
                 sendPostNotFound(message, callback)

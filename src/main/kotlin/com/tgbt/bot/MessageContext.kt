@@ -135,7 +135,8 @@ data class MessageContext(
             NotifyFreezeScheduleCommand,
             SendFreezeStatusCommand,
             LastDayScheduleCommand,
-            LastDayMissedCommand
+            LastDayMissedCommand,
+            GatekeeperCommand,
         )
 
         private val USER_COMMANDS: List<BotCommand> = listOf(

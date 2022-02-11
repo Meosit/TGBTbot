@@ -17,6 +17,7 @@ For post forwarding:
 
 For user suggestions forwarding:
 /suggestions `<true|false>` - global switch for suggestions
+/gatekeeper `<tg mention>` - username or the person which will be visible for users to solve ban-related requests
 /editors\_chat `<id_number>`- set the editors chat where the suggestions will be posted for approval 
 /force\_pool\_suggestions - trigger a suggestion pooling from DB to editors chat
 /suggestion\_pooling `<minutes>` - time between new suggestions check

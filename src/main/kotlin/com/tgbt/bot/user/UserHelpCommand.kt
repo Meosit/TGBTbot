@@ -14,7 +14,8 @@ object UserHelpCommand: BotCommand {
             .sendChatMessage(chatId, TgTextOutput(helpMessage
                 .format(
                     bot.settings.str(Setting.USER_EDIT_TIME_MINUTES),
-                    bot.settings.str(Setting.USER_SUGGESTION_DELAY_MINUTES)
+                    bot.settings.str(Setting.USER_SUGGESTION_DELAY_MINUTES),
+                    bot.settings.str(Setting.GATEKEEPER)
                 )))
     }
 }

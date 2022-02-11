@@ -299,6 +299,9 @@ suspend fun BotContext.forwardVkPosts(forcedByOwner: Boolean = false) {
             }
         }
         doNotThrow("Failed to send freeze notification") {
+            if (lastPosts.isEmpty()) {
+                return@doNotThrow
+            }
             val freeze = stats["freeze"] ?: 0
             val slotError = settings.long(VK_SCHEDULE_ERROR_MINUTES)
             val latestSlotTime = zonedNow().minusMinutes(min(freeze.toLong() - 1, slotError)).toLocalTime()
@@ -506,9 +509,7 @@ suspend fun BotContext.notifyAboutForgottenSuggestions(force: Boolean = false, c
                         TgTextOutput("Пост ждёт обработки, создан $hoursSinceCreated часов назад"),
                         replyMessageId = suggestion.editorMessageId
                     )
-                    if (forgotten % 10 == 0) {
-                        delay(500)
-                    }
+                    delay(200)
                     forgotten++
                 }
             }
@@ -559,10 +560,12 @@ suspend inline fun <T> BotContext.doNotThrow(message: String, block: () -> T?): 
     val stack = e.stackTrace
     .filter { it.className.contains("com.tgbt") }
         .joinToString("\n") { "${it.className.replace("com.tgbt", "")}.${it.methodName}(${it.lineNumber})" }
+        .ifBlank { "none" }
+        .escapeMarkdown()
     val response = (e as? ClientRequestException)?.response
-    val clientError = response?.content?.readUTF8Line() ?: e.message
-    val textParameter = (response?.let { it.request.url.parameters["text"].orEmpty() }.orEmpty()).trimToLength(400, "|<- truncated")
-    val markdownText = "$message, please check logs, error message:\n`$clientError`\n\nText parameter (first 400 chars): `${textParameter.ifBlank { "<none>" }}`\n\nStacktrace:\n`${stack.ifBlank { "<none>" }}`"
+    val clientError = (response?.content?.readUTF8Line() ?: e.message)?.ifBlank { "none" }?.escapeMarkdown() ?: "none"
+    val textParameter = (response?.let { it.request.url.parameters["text"].orEmpty() }.orEmpty()).trimToLength(400, "|<- truncated").ifBlank { "none" }.escapeMarkdown()
+    val markdownText = "$message, please check logs, error message:\n`$clientError`\n\nText parameter (first 400 chars): `$textParameter`\n\nStacktrace:\n`$stack`"
     logger.error(markdownText, e)
     val output = TgTextOutput(markdownText)
     ownerIds.forEach { tgMessageSender.sendChatMessage(it, output) }
@@ -652,4 +655,5 @@ private fun insertDefaultSettings(settings: Settings, json: Json) = with(setting
     putIfAbsent(VK_SCHEDULE, "5:00 Улиточка")
     putIfAbsent(VK_SCHEDULE_ERROR_MINUTES, "5")
     putIfAbsent(SEND_FREEZE_STATUS, "true")
+    putIfAbsent(GATEKEEPER, "anon")
 }

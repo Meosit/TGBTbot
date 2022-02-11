@@ -3,8 +3,8 @@ package com.tgbt.bot.user
 import com.tgbt.bot.MessageContext
 import com.tgbt.bot.user.UserMessages.duplicateErrorMessage
 import com.tgbt.bot.user.UserMessages.emptyErrorMessage
+import com.tgbt.bot.user.UserMessages.postSuggestedMessage
 import com.tgbt.bot.user.UserMessages.sizeErrorMessage
-import com.tgbt.misc.loadResourceAsString
 import com.tgbt.settings.Setting
 import com.tgbt.suggestion.UserSuggestion
 import com.tgbt.suggestion.postTextTeaser
@@ -14,8 +14,6 @@ import com.tgbt.telegram.verboseUserName
 import org.slf4j.LoggerFactory
 
 object AddPostCommand: PostCommand() {
-    private val successMessage = loadResourceAsString("user/post.suggested.md")
-
 
     override suspend fun MessageContext.handle() {
         when (messageText.length) {
@@ -38,7 +36,7 @@ object AddPostCommand: PostCommand() {
                     if (bot.suggestionStore.insert(suggestion)) {
                         val editTimeMinutes = bot.settings.long(Setting.USER_EDIT_TIME_MINUTES)
                         val suggestionDelayMinutes = bot.settings.long(Setting.USER_SUGGESTION_DELAY_MINUTES)
-                        bot.tgMessageSender.sendChatMessage(chatId, TgTextOutput(successMessage.format(editTimeMinutes, suggestionDelayMinutes)))
+                        bot.tgMessageSender.sendChatMessage(chatId, TgTextOutput(postSuggestedMessage.format(editTimeMinutes, suggestionDelayMinutes)))
                         logger.info("NEW SUGGESTION from ${message.verboseUserName}: '${suggestion.postTextTeaser()}'")
                     }
                 }
