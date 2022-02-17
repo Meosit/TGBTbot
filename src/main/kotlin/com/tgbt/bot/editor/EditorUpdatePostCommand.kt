@@ -72,7 +72,7 @@ class EditorUpdatePostCommand(private val suggestion: UserSuggestion): PostComma
                                 tgMessageSender.sendChatMessage(suggestion.authorChatId.toString(), TgTextOutput(UserMessages.bannedErrorMessage
                                     .format(suggestion.postTextTeaser().escapeMarkdown(), comment.escapeMarkdown())))
                                 val keyboardJson = json.encodeToString(InlineKeyboardMarkup.serializer(),
-                                    InlineKeyboardButton("❌ Забанен ${message.from?.simpleRef ?: "anon"} c \uD83D\uDCAC в ${Instant.now().simpleFormatTime()} ❌", EditorButtonAction.DELETED_DATA).toMarkup())
+                                    InlineKeyboardButton("❌ Забанен ${message.from?.simpleRef ?: "anon"} в ${Instant.now().simpleFormatTime()} \uD83D\uDCAC $comment ❌".trimToLength(512, "…"), EditorButtonAction.DELETED_DATA).toMarkup())
                                 tgMessageSender.editChatMessageKeyboard(suggestion.editorChatId.toString(), suggestion.editorMessageId, keyboardJson)
                                 logger.info("Editor ${message.from?.simpleRef} banned a user ${suggestion.authorName} because of post '${suggestion.postTextTeaser()}', comment '$comment'")
                             }
