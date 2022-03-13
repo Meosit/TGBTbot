@@ -268,7 +268,7 @@ suspend fun BotContext.forwardVkPosts(forcedByOwner: Boolean = false) {
         }
         val forwarded = mutableListOf<String>()
         postsToForward?.forEach {
-            doNotThrow("Post https://vk.com/wall${communityId}_${it.id} failed to send\nTo have it in telegram, post manually.\nAlso") {
+            doNotThrow("Post https://vk.com/wall${communityId}\\_${it.id} passes the criteria but failed to send\nTo have it in telegram, post manually.\nAlso") {
                 val prepared = TgPreparedPost(it.text, it.imageUrl, footerMd)
                 if (postStore.insert(it)) {
                     logger.info(
