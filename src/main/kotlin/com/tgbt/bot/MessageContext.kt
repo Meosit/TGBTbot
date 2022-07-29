@@ -129,6 +129,7 @@ data class MessageContext(
             VkIdCommand,
             VkFreezeMentionsCommand,
             VkFreezeTimeoutCommand,
+            VkFreezeIgnoreCommand,
             VkScheduleCommand,
             VkScheduleErrorCommand,
             NotifyFreezeTimeoutCommand,
