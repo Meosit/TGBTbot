@@ -314,7 +314,7 @@ suspend fun BotContext.forwardVkPosts(forcedByOwner: Boolean = false) {
                 }
             }
 
-            val oldestPostTime = lastPosts.last().localTime
+            val oldestPostTime = lastPosts.first().localTime
             val freeze = when {
                 vkFreezeIgnoreEnd.inLocalRange(oldestPostTime, zonedNow().toLocalTime()) ->
                     Duration.between(vkFreezeIgnoreEnd, zonedNow().toLocalTime()).toMinutes().toInt()
