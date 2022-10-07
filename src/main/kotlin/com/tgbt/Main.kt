@@ -13,10 +13,7 @@ import com.tgbt.post.*
 import com.tgbt.settings.Setting.*
 import com.tgbt.settings.SettingStore
 import com.tgbt.settings.Settings
-import com.tgbt.suggestion.SuggestionStatus
-import com.tgbt.suggestion.SuggestionStore
-import com.tgbt.suggestion.authorReference
-import com.tgbt.suggestion.postTextTeaser
+import com.tgbt.suggestion.*
 import com.tgbt.telegram.*
 import com.tgbt.telegram.output.TgImageOutput
 import com.tgbt.telegram.output.TgTextOutput
@@ -38,7 +35,6 @@ import io.ktor.response.*
 import io.ktor.routing.*
 import io.ktor.serialization.*
 import io.ktor.server.netty.*
-import io.ktor.utils.io.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
@@ -117,9 +113,7 @@ fun Application.main() {
                 logger.error("Received exception while handling update: ${e.message}")
                 val sw = StringWriter()
                 e.printStackTrace(PrintWriter(sw))
-                (e as? ClientRequestException)?.response?.content?.let {
-                    logger.error(it.readUTF8Line())
-                }
+                (e as? ClientRequestException)?.response?.readText()?.let { logger.error(it) }
                 logger.error("Uncaught exception: $sw")
             }
             call.respond(HttpStatusCode.OK)
@@ -142,9 +136,7 @@ fun Application.main() {
             } catch (e: Exception) {
                 val message = "Unexpected error occurred while reposting, next try in 60 seconds, error message:\n`${e.message?.escapeMarkdown()}`"
                 logger.error(message, e)
-                (e as? ClientRequestException)?.response?.content?.let {
-                    logger.error(it.readUTF8Line())
-                }
+                (e as? ClientRequestException)?.response?.readText()?.let { logger.error(it) }
                 val output = TgTextOutput(message)
                 ownerIds.forEach { tgMessageSender.sendChatMessage(it, output) }
                 delay(60000)
@@ -163,9 +155,7 @@ fun Application.main() {
             } catch (e: Exception) {
                 val message = "Unexpected error occurred while suggestions pooling, next try in 60 seconds, error message:\n`${e.message?.escapeMarkdown()}`"
                 logger.error(message, e)
-                (e as? ClientRequestException)?.response?.content?.let {
-                    logger.error(it.readUTF8Line())
-                }
+                (e as? ClientRequestException)?.response?.readText()?.let { logger.error(it) }
                 val output = TgTextOutput(message)
                 ownerIds.forEach { tgMessageSender.sendChatMessage(it, output) }
                 delay(60000)
@@ -508,15 +498,22 @@ suspend fun BotContext.notifyAboutForgottenSuggestions(force: Boolean = false, c
         logger.info("Currently there are ${forgottenSuggestions?.size} forgotten posts, notifying...")
         forgottenSuggestions?.forEach { suggestion ->
             doNotThrow("Failed to notify about forgotten post") {
+                val retryAfterRegex = """\{\s*"retry_after"\s*:\s*(\d+)\s*}""".toRegex()
                 val hoursSinceCreated = Duration
                     .between(Instant.now(), suggestion.insertedTime.toInstant()).abs().toHours()
                 if (hoursSinceCreated > createdBeforeHours) {
                     logger.info("Post from ${suggestion.authorName} created $hoursSinceCreated hours ago")
-                    tgMessageSender.sendChatMessage(
-                        suggestion.editorChatId.toString(),
-                        TgTextOutput("Пост ждёт обработки, создан $hoursSinceCreated часов назад"),
-                        replyMessageId = suggestion.editorMessageId
-                    )
+                    runCatching {
+                        sendPendingReviewNotification(suggestion, hoursSinceCreated)
+                    }.recover { e ->
+                        val wait = (e as? ClientRequestException)?.response?.readText()
+                            ?.let { error -> retryAfterRegex.find(error)?.let { it.groupValues[1] } }
+                            ?.toLongOrNull()
+                        wait?.let {
+                            delay(wait * 1000L + 200)
+                            sendPendingReviewNotification(suggestion, hoursSinceCreated)
+                        }
+                    }
                     delay(200)
                     forgotten++
                 }
@@ -525,6 +522,15 @@ suspend fun BotContext.notifyAboutForgottenSuggestions(force: Boolean = false, c
     }
     return forgotten
 }
+
+private suspend fun BotContext.sendPendingReviewNotification(
+    suggestion: UserSuggestion,
+    hoursSinceCreated: Long
+) = tgMessageSender.sendChatMessage(
+    suggestion.editorChatId.toString(),
+    TgTextOutput("Пост ждёт обработки, создан $hoursSinceCreated часов назад"),
+    replyMessageId = suggestion.editorMessageId
+)
 
 private suspend fun BotContext.postScheduledSuggestions(footerMd: String): Int {
     val targetChannel = settings.str(TARGET_CHANNEL)
@@ -565,15 +571,10 @@ private suspend fun BotContext.postScheduledSuggestions(footerMd: String): Int {
 suspend inline fun <T> BotContext.doNotThrow(message: String, block: () -> T?): T? = try {
     block()
 } catch (e: Exception) {
-    val stack = e.stackTrace
-    .filter { it.className.contains("com.tgbt") }
-        .joinToString("\n") { "${it.className.replace("com.tgbt", "")}.${it.methodName}(${it.lineNumber})" }
-        .ifBlank { "none" }
-        .escapeMarkdown()
     val response = (e as? ClientRequestException)?.response
-    val clientError = (response?.content?.readUTF8Line() ?: e.message)?.ifBlank { "none" }?.escapeMarkdown() ?: "none"
+    val clientError = (response?.readText() ?: e.message)?.ifBlank { "none" }?.escapeMarkdown() ?: "none"
     val textParameter = (response?.let { it.request.url.parameters["text"].orEmpty() }.orEmpty()).trimToLength(400, "|<- truncated").ifBlank { "none" }.escapeMarkdown()
-    val markdownText = "$message, please check logs, error message:\n`$clientError`\n\nText parameter (first 400 chars): `$textParameter`\n\nStacktrace:\n`$stack`"
+    val markdownText = "$message, please check logs, error message:\n`$clientError`\n\nText parameter (first 400 chars): `$textParameter`\n\n"
     logger.error(markdownText, e)
     val output = TgTextOutput(markdownText)
     ownerIds.forEach { tgMessageSender.sendChatMessage(it, output) }
@@ -623,7 +624,7 @@ suspend fun BotContext.sendTelegramPost(targetChat: String, prepared: TgPrepared
 private fun initializeDataSource(dbUrl: String) {
     val dbUri = URI(dbUrl)
     val (username: String, password: String) = dbUri.userInfo.split(":")
-    val jdbcUrl = "jdbc:postgresql://${dbUri.host}:${dbUri.port}${dbUri.path}?sslmode=require"
+    val jdbcUrl = "jdbc:postgresql://${dbUri.host}:${dbUri.port}${dbUri.path}?currentSchema=public"
     HikariCP.default(jdbcUrl, username, password)
     SessionImpl.defaultDataSource = { HikariCP.dataSource() }
     logger.info("JDBC url: $jdbcUrl")

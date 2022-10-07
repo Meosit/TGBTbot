@@ -14,7 +14,7 @@ import com.tgbt.telegram.anyText
 import com.tgbt.telegram.isPrivate
 import com.tgbt.telegram.output.TgTextOutput
 import io.ktor.client.features.*
-import io.ktor.utils.io.*
+import io.ktor.client.statement.*
 import org.slf4j.LoggerFactory
 
 data class MessageContext(
@@ -43,7 +43,7 @@ data class MessageContext(
         try {
             handleUpdateInternal()
         } catch (e: Exception) {
-            val line = (e as? ClientRequestException)?.response?.content?.readUTF8Line()
+            val line = (e as? ClientRequestException)?.response?.readText()
             val message = "Unexpected error occurred while handling update, error message:\n`${e.message?.escapeMarkdown()}`" +
                         (line?.let { "\n\nResponse content:\n```${line.escapeMarkdown()}```" } ?: "")
             logger.error(message, e)

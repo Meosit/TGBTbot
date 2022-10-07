@@ -73,7 +73,7 @@ tasks {
     }
 
     named<ShadowJar>("shadowJar") {
-        archiveFileName.set("TGBTbot.jar")
+        archiveFileName.set("tgbtbot.jar")
         mergeServiceFiles()
         manifest {
             attributes(mapOf("Main-Class" to "com.tgbt.MainKt"))
