@@ -7,12 +7,14 @@ import com.tgbt.bot.editor.UnbanCommand
 import com.tgbt.bot.owner.*
 import com.tgbt.bot.user.*
 import com.tgbt.misc.escapeMarkdown
+import com.tgbt.misc.trimToLength
 import com.tgbt.settings.Setting.EDITOR_CHAT_ID
 import com.tgbt.settings.Setting.SUGGESTIONS_ENABLED
 import com.tgbt.telegram.Message
 import com.tgbt.telegram.anyText
 import com.tgbt.telegram.isPrivate
 import com.tgbt.telegram.output.TgTextOutput
+import com.tgbt.telegram.simpleRef
 import io.ktor.client.features.*
 import io.ktor.client.statement.*
 import org.slf4j.LoggerFactory
@@ -41,6 +43,13 @@ data class MessageContext(
 
     suspend fun handleUpdate() {
         try {
+            logger.info("Message [${message.chat.title ?: ("${message.chat.firstName} ${message.chat.lastName}")};$chatId]" +
+                    "(${message.from?.simpleRef ?: "???"})" +
+                    (if (isEdit) "{EDIT}" else "") +
+                    (message.photo?.let { "{PH}" } ?: "") +
+                    (if (message.photo == null && message.caption != null) "{FWD}" else  "") +
+                    (replyMessage?.let { "{RE:${it.anyText?.trimToLength(20)}}" } ?: "") +
+                    ": $messageText")
             handleUpdateInternal()
         } catch (e: Exception) {
             val line = (e as? ClientRequestException)?.response?.readText()
@@ -91,7 +100,7 @@ data class MessageContext(
                     }
                     Unit
                 }
-                else -> logger.info("Ignored editors chat message")
+                else -> Unit
             }
         }
         else -> {
