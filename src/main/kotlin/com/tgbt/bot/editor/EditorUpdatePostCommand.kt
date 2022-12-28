@@ -31,7 +31,7 @@ class EditorUpdatePostCommand(private val suggestion: UserSuggestion): PostComma
                 updatedSuggestion = suggestion.copy(imageId = null)
                 suggestionStore.update(updatedSuggestion, byAuthor = false)
                 tgMessageSender.sendChatMessage(chatId, TgTextOutput(noPicMessage), replyMessageId = message.id)
-                logger.info("Editor ${message.from?.simpleRef} remoted image for post '${suggestion.postTextTeaser()}' from ${suggestion.authorName}")
+                logger.info("Editor ${message.from?.simpleRef} removed image for post '${suggestion.postTextTeaser()}' from ${suggestion.authorName}")
             }
             messageText.startsWith("/reject") -> {
                 when (val value = messageText.removePrefix("/reject").trim()) {

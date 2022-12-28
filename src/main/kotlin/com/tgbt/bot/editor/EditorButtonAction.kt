@@ -5,6 +5,7 @@ import com.tgbt.bot.BotContext
 import com.tgbt.bot.user.UserMessages
 import com.tgbt.doNotThrow
 import com.tgbt.misc.escapeMarkdown
+import com.tgbt.misc.isImageUrl
 import com.tgbt.misc.simpleFormatTime
 import com.tgbt.misc.trimToLength
 import com.tgbt.post.TgPreparedPost
@@ -55,9 +56,33 @@ object EditorButtonAction {
         "calm" to "Посиди в бане, подумай над тем что скинул",
         "shame" to "Твоим родителям должно быть стыдно"
     )
+    private val editComments = mapOf(
+        "default" to "\uD83D\uDDBC Дефолтный йоба",
+        "rage" to "\uD83D\uDDBC Горелый йоба",
+        "cry" to "\uD83D\uDDBC Слезливый йоба",
+        "creep" to "\uD83D\uDDBC Криповый йоба",
+        "doom" to "\uD83D\uDDBC Думер йоба",
+        "twist" to "\uD83D\uDDBC Скрюченый йоба",
+        "prefix" to "❌\uD83D\uDDD1 Вступление",
+        "postfix" to "❌\uD83D\uDDD1 Послесловие",
+        "upper" to "\uD83E\uDE84 Оформить текст \uD83E\uDE84",
+    )
+    private val editActions = mapOf<String, (UserSuggestion) -> UserSuggestion>(
+        "default" to { it.copy(imageId = "https://sun6.userapi.com/sun6-23/s/v1/ig2/Rw4gx5hgWBRBNpIfU6cSYDt07noe1MnICMR5BBLDfe9OKujnGAy7QAHtv3QnvvBUuo0DBjc9YZwbXrUWjJoNlFxU.jpg?size=551x551&quality=96&type=album") },
+        "rage" to { it.copy(imageId = "https://sun9-north.userapi.com/sun9-82/s/v1/ig2/MaNAvmjCaJR-WmE9-hTg-2JtW7UylT0TywvTYJl2CZMKfBvbqSbAsNI3-JWdFbAZhz-RYfkRNtG59OCgxOYFldEH.jpg?size=500x500&quality=95&type=album") },
+        "cry" to { it.copy(imageId = "https://sun6.userapi.com/sun6-20/s/v1/ig2/geSQmOIvkC_wJWs22X-mk63pbUV3h7Jhbk63EifU1dvf6w6PkN3mRZr8X2VjM3TtGkquon8FDDzYNTWp6YiEEKFh.jpg?size=521x500&quality=95&type=album") },
+        "creep" to { it.copy(imageId = "https://sun9-north.userapi.com/sun9-86/s/v1/if1/CECJKh38jpVAPrDqtZLg_OscWYZMmevrSk-duCX9fOLLpwqjNLaJPMM2XIVOcSEas0TlKvZf.jpg?size=736x736&quality=96&type=album") },
+        "doom" to { it.copy(imageId = "https://sun9-north.userapi.com/sun9-77/s/v1/ig2/hw2uLGMctR2RdMtqAYMmhD8aRWABELT4QpahlFapY1EtN7PmjlP5N2KMdqA4m3nACxFJMTRZfRit_JFa_RNIYnus.jpg?size=500x500&quality=96&type=album") },
+        "twist" to { it.copy(imageId = "https://sun6.userapi.com/sun6-23/s/v1/ig2/enK9f6D-j_7fXjBEYNaoujBGmWxP-R6ZqKZrq0UXFra1GH1gH6rrCttREQn3n7NSbCT8hglYe6LKhrrPQTUn1pxr.jpg?size=604x604&quality=95&type=album") },
+        "prefix" to { it.copy(postText = it.postText.removeBugurtSurrounding(prefix = true)) },
+        "postfix" to { it.copy(postText = it.postText.removeBugurtSurrounding(prefix = false)) },
+        "upper" to { it.copy(postText = it.postText.prettifyBugurt()) },
+        )
     private const val DELETE_ACTION_DATA = "del"
     private const val DELETE_WITH_COMMENT_DATA = "del_comment_"
     private const val CONFIRM_DELETE_ACTION_DATA = "del_confirm"
+    private const val EDIT_ACTION_DATA = "edit"
+    private const val EDIT_DATA = "edit_"
     private const val BAN_ACTION_DATA = "ban"
     private const val BAN_WITH_COMMENT_DATA = "ban_"
     private const val POST_ANONYMOUSLY_DATA = "anon"
@@ -71,6 +96,9 @@ object EditorButtonAction {
     internal const val DELETED_DATA = "deleted"
 
     val ACTION_KEYBOARD = InlineKeyboardMarkup(listOf(
+        listOf(
+            InlineKeyboardButton("✏️ Редактировать", EDIT_ACTION_DATA),
+        ),
         listOf(
             InlineKeyboardButton("❌ Удалить", DELETE_ACTION_DATA),
             InlineKeyboardButton("\uD83D\uDEAB Забанить", BAN_ACTION_DATA)
@@ -96,6 +124,7 @@ object EditorButtonAction {
         when(callback.data) {
             DELETE_ACTION_DATA -> sendConfirmDialog(message, callback,
                 InlineKeyboardButton("❌ Удалить без комментария", CONFIRM_DELETE_ACTION_DATA), rejectPlaceholders())
+            EDIT_ACTION_DATA -> sendConfirmDialog(message, callback, null, editPlaceholders())
             BAN_ACTION_DATA -> sendConfirmDialog(message, callback, null, banPlaceholders())
             POST_ANONYMOUSLY_DATA -> sendConfirmDialog(message, callback,
                 InlineKeyboardButton("✅ Точно отправить анонимно?", CONFIRM_POST_ANONYMOUSLY_DATA),
@@ -128,6 +157,8 @@ object EditorButtonAction {
                     rejectPost(suggestion, message, callback, rejectComments[callback.data.removePrefix(DELETE_WITH_COMMENT_DATA)])
                 suggestion != null && callback.data?.validBanWithCommentPayload() == true ->
                     banPost(suggestion, message, callback, banComments.getValue(callback.data.removePrefix(BAN_WITH_COMMENT_DATA)))
+                suggestion != null && callback.data?.validEditPayload() == true ->
+                    editSuggestion(suggestion, message, callback, editActions.getValue(callback.data.removePrefix(EDIT_DATA)))
                 else -> tgMessageSender.pingCallbackQuery(callback.id, "Нераспознанные данные '${callback.data}'")
             }
         }
@@ -226,6 +257,72 @@ object EditorButtonAction {
         logger.info("Editor ${message.from?.simpleRef} scheduled post '${suggestion.postTextTeaser()}' from ${suggestion.authorName} to $scheduleLabel")
     }
 
+
+    private val lowercaseBugurtPartsRegex = "#[a-zа-я_]+|\\*.*?\\*|<.*?>".toRegex(RegexOption.IGNORE_CASE)
+    private val bugurtRegex = "(@\\n?)?([^@\\n]+\\n?(@\\s*\\n?)+)+[^@\\n]+(\\n?@)?".toRegex(RegexOption.MULTILINE)
+
+    private fun String.prettifyBugurt(): String = this.replace(bugurtRegex) { match -> match.value
+        .trim()
+        .dropWhile { it == '@' }
+        .dropLastWhile { it == '@' }
+        .split("@")
+        .joinToString("\n@") { line -> when(line) {
+            "", "\n" -> ""
+            else ->  "\n" + line.trim().uppercase().replace(lowercaseBugurtPartsRegex) { it.value.lowercase() } }
+        }.trim()
+    }
+
+    private fun String.removeBugurtSurrounding(prefix: Boolean): String {
+        val match = bugurtRegex.find(this)
+        if (match != null) {
+            return if (prefix) this.removeRange(0, match.range.first)
+            else this.removeRange(match.range.last + 1, this.length)
+        }
+        return this
+    }
+
+    private suspend fun BotContext.editSuggestion(
+        suggestion: UserSuggestion,
+        message: Message,
+        callback: CallbackQuery,
+        editAction: (UserSuggestion) -> UserSuggestion
+    ) = doNotThrow("Failed to edit suggestion") {
+        val updated = editAction(suggestion)
+        val keyboardJson = json.encodeToString(InlineKeyboardMarkup.serializer(), ACTION_KEYBOARD)
+        suggestionStore.update(updated, byAuthor = false)
+
+        // footer links should not be previewed.
+        val post = TgPreparedPost(updated.postText, updated.imageId,
+            settings.str(Setting.FOOTER_MD), suggestion.authorReference(false))
+
+        if (message.photo != null) {
+            when {
+                updated.postText != suggestion.postText -> {
+                    val caption = post.withoutImage.trimToLength(1024, "...\n_(пост стал длиннее чем 1024 символа)_")
+                    tgMessageSender.editChatMessageCaption(message.chat.id.toString(), message.id, caption, keyboardJson)
+                }
+                updated.imageId != suggestion.imageId -> {
+                    val imageUrl = post.maybeImage ?: message.photo.first().fileId
+                    tgMessageSender.editChatMessagePhoto(message.chat.id.toString(), message.id, imageUrl)
+                }
+            }
+        } else {
+            val disableLinkPreview = post.footerMarkdown.contains("https://")
+                    && !post.text.contains("https://")
+                    && !(post.maybeImage?.isImageUrl() ?: false)
+            tgMessageSender.editChatMessageText(
+                message.chat.id.toString(),
+                message.id,
+                post.withImage,
+                keyboardJson,
+                disableLinkPreview = disableLinkPreview
+            )
+        }
+
+        tgMessageSender.pingCallbackQuery(callback.id, "✏️✅ Пост изменен ✏️✅")
+        logger.info("Editor ${message.from?.simpleRef} updated post '${suggestion.postTextTeaser()}' from ${suggestion.authorName}")
+    }
+
     private fun String.validSchedulePayload(prefix: String) = this.startsWith(prefix)
             && this.removePrefix(prefix).toLongOrNull() != null
             && Duration.ofMinutes(this.removePrefix(prefix).toLong()) in scheduleDelays
@@ -235,6 +332,9 @@ object EditorButtonAction {
 
     private fun String.validBanWithCommentPayload() = this.startsWith(BAN_WITH_COMMENT_DATA)
             && this.removePrefix(BAN_WITH_COMMENT_DATA) in banComments
+
+    private fun String.validEditPayload() = this.startsWith(EDIT_DATA)
+            && this.removePrefix(EDIT_DATA) in editActions
 
     private suspend fun BotContext.sendSuggestion(
         suggestion: UserSuggestion?,
@@ -326,6 +426,13 @@ object EditorButtonAction {
     private suspend fun banPlaceholders(): suspend SequenceScope<List<InlineKeyboardButton>>.() -> Unit = { banComments
             .map { (key, comment) -> InlineKeyboardButton("❌ \uD83D\uDCAC \"$comment\" ❌", "$BAN_WITH_COMMENT_DATA$key") }
             .forEach { yield(listOf(it)) }
+    }
+
+    private suspend fun editPlaceholders(): suspend SequenceScope<List<InlineKeyboardButton>>.() -> Unit = {
+        val buttons = editComments.map { (key, title) -> InlineKeyboardButton(title, "$EDIT_DATA$key") }
+        for (i in buttons.indices step 2) {
+            yield((0 until 2).mapNotNull { buttons.getOrNull(i + it) })
+        }
     }
 
     private suspend fun BotContext.sendDeletedConfirmation(
