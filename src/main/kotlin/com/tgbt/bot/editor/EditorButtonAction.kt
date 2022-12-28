@@ -296,16 +296,12 @@ object EditorButtonAction {
             settings.str(Setting.FOOTER_MD), suggestion.authorReference(false))
 
         if (message.photo != null) {
-            when {
-                updated.postText != suggestion.postText -> {
-                    val caption = post.withoutImage.trimToLength(1024, "...\n_(пост стал длиннее чем 1024 символа)_")
-                    tgMessageSender.editChatMessageCaption(message.chat.id.toString(), message.id, caption, keyboardJson)
-                }
-                updated.imageId != suggestion.imageId -> {
-                    val imageUrl = post.maybeImage ?: message.photo.first().fileId
-                    tgMessageSender.editChatMessagePhoto(message.chat.id.toString(), message.id, imageUrl)
-                }
+            if (updated.imageId != suggestion.imageId) {
+                val imageUrl = post.maybeImage ?: message.photo.first().fileId
+                tgMessageSender.editChatMessagePhoto(message.chat.id.toString(), message.id, imageUrl)
             }
+            val caption = post.withoutImage.trimToLength(1024, "...\n_(пост стал длиннее чем 1024 символа)_")
+            tgMessageSender.editChatMessageCaption(message.chat.id.toString(), message.id, caption, keyboardJson)
         } else {
             val disableLinkPreview = post.footerMarkdown.contains("https://")
                     && !post.text.contains("https://")
