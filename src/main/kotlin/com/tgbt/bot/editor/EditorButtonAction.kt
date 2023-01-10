@@ -17,7 +17,7 @@ import com.tgbt.suggestion.authorReference
 import com.tgbt.suggestion.postTextTeaser
 import com.tgbt.telegram.*
 import com.tgbt.telegram.output.TgTextOutput
-import io.ktor.client.features.*
+import io.ktor.client.plugins.*
 import io.ktor.http.*
 import org.slf4j.LoggerFactory
 import java.sql.Timestamp
@@ -224,7 +224,7 @@ object EditorButtonAction {
                 tgMessageSender.sendChatMessage(suggestion.authorChatId.toString(), TgTextOutput(UserMessages.bannedErrorMessage
                     .format(suggestion.postTextTeaser().escapeMarkdown(), banComment.escapeMarkdown())))
                 val keyboardJson = json.encodeToString(InlineKeyboardMarkup.serializer(),
-                    InlineKeyboardButton("\uD83D\uDEAB Забанен ${message.from?.simpleRef ?: "anon"} в ${Instant.now().simpleFormatTime()} \uD83D\uDCAC $banComment ❌".trimToLength(512, "…"), DELETED_DATA).toMarkup())
+                    InlineKeyboardButton("\uD83D\uDEAB Забанен ${callback.from.simpleRef} в ${Instant.now().simpleFormatTime()} \uD83D\uDCAC $banComment ❌".trimToLength(512, "…"), DELETED_DATA).toMarkup())
                 tgMessageSender.editChatMessageKeyboard(suggestion.editorChatId.toString(), suggestion.editorMessageId, keyboardJson)
                 logger.info("Editor ${message.from?.simpleRef} banned a user ${suggestion.authorName} because of post '${suggestion.postTextTeaser()}', comment '$banComment'")
             }
