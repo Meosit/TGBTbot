@@ -1,7 +1,5 @@
 package com.tgbt
 
-import com.tgbt.ban.BanStore
-import com.tgbt.bot.BotContext
 import com.tgbt.bot.MessageContext
 import com.tgbt.bot.editor.EditorButtonAction
 import com.tgbt.bot.owner.VkScheduleCommand
@@ -11,22 +9,16 @@ import com.tgbt.grammar.*
 import com.tgbt.misc.*
 import com.tgbt.post.*
 import com.tgbt.settings.Setting.*
-import com.tgbt.settings.SettingStore
-import com.tgbt.settings.Settings
 import com.tgbt.suggestion.*
 import com.tgbt.telegram.*
 import com.tgbt.telegram.output.TgImageOutput
 import com.tgbt.telegram.output.TgTextOutput
 import com.tgbt.vk.VkPost
 import com.tgbt.vk.VkPostLoader
-import com.vladsch.kotlin.jdbc.HikariCP
-import com.vladsch.kotlin.jdbc.SessionImpl
 import io.ktor.client.*
 import io.ktor.client.plugins.*
-import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
-import io.ktor.serialization.*
 import io.ktor.serialization.kotlinx.json.*
 import io.ktor.server.application.*
 import io.ktor.server.jetty.*
@@ -40,10 +32,8 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.modules.plus
 import org.slf4j.LoggerFactory
-import org.slf4j.event.*
 import java.io.PrintWriter
 import java.io.StringWriter
-import java.net.URI
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalTime
@@ -53,66 +43,50 @@ import kotlin.math.min
 
 val logger = LoggerFactory.getLogger("MainKt")
 
+
+val BotJson = Json {
+    ignoreUnknownKeys = true
+    isLenient = true
+    serializersModule += exprModule
+}
+
+
+val BotHttpClient = HttpClient {
+    install(io.ktor.client.plugins.contentnegotiation.ContentNegotiation) {
+        json(BotJson)
+    }
+}
+
+val BotToken: String = System.getenv("TG_BOT_TOKEN")
+
+val BotOwnerIds: List<String> = if (System.getenv("OWNER_IDS").isNullOrBlank()) emptyList() else
+    System.getenv("OWNER_IDS").split(',')
+
+fun requireEnvs(vararg envs: String) {
+    val missing = envs.filter { System.getenv(it) == null }.toList()
+    if (missing.isNotEmpty())
+        throw IllegalStateException("Missing ${missing.size} required envs: ${missing.joinToString()}")
+}
+
 fun main(args: Array<String>) = EngineMain.main(args)
 
+@Suppress("unused")
 fun Application.main() {
-    val appUrl: String = System.getenv("APP_URL")
-    val dbUrl: String = System.getenv("DATABASE_URL")
-    val vkServiceToken: String = System.getenv("VK_SERVICE_TOKEN")
-    val tgBotToken: String = System.getenv("TG_BOT_TOKEN")
-    val telegraphApiToken: String = System.getenv("TELEGRAPH_TOKEN")
-    val ownerIds: List<String> = if (System.getenv("OWNER_IDS").isNullOrBlank()) emptyList() else
-        System.getenv("OWNER_IDS").split(',')
-
-    val json = Json {
-        ignoreUnknownKeys = true
-        isLenient = true
-        serializersModule += exprModule
-    }
-
-    initializeDataSource(dbUrl)
-
+    requireEnvs("APP_URL", "DATABASE_URL", "VK_SERVICE_TOKEN", "TG_BOT_TOKEN", "TELEGRAPH_TOKEN", "OWNER_IDS", "OWNER_IDS")
     install(DefaultHeaders)
     install(CallLogging)
     install(io.ktor.server.plugins.contentnegotiation.ContentNegotiation) {
-        json(json)
+        json(BotJson)
     }
-    val httpClient = HttpClient {
-        install(io.ktor.client.plugins.contentnegotiation.ContentNegotiation) {
-            json(json)
-        }
-    }
-
-    val postStore = PostStore()
-    val suggestionStore = SuggestionStore()
-    val banStore = BanStore()
-    val settings = Settings(SettingStore())
-    insertDefaultSettings(settings, json)
-
-    val tgMessageSender = TgMessageSender(httpClient, tgBotToken)
-    val telegraphPostCreator = TelegraphPostCreator(httpClient, json, telegraphApiToken)
-    val vkPostLoader = VkPostLoader(httpClient, vkServiceToken)
-
-    val botContext = BotContext(
-        json,
-        ownerIds,
-        postStore,
-        suggestionStore,
-        banStore,
-        settings,
-        tgMessageSender,
-        telegraphPostCreator,
-        vkPostLoader
-    )
 
     install(Routing) {
-        post("/handle/$tgBotToken") {
+        post("/handle/$BotToken") {
             try {
                 val update = call.receive<Update>()
                 val msg = update.message ?: update.editedMessage
                 when {
                     msg != null -> {
-                        val msgContext = MessageContext(botContext, msg, isEdit = update.editedMessage != null)
+                        val msgContext = MessageContext(msg, isEdit = update.editedMessage != null)
                         msgContext.handleUpdate()
                     }
 
@@ -124,7 +98,7 @@ fun Application.main() {
                                 )
                             }"
                         )
-                        EditorButtonAction.handleActionCallback(botContext, update.callbackQuery)
+                        EditorButtonAction.handleActionCallback(update.callbackQuery)
                     }
 
                     else -> logger.info("Nothing useful, do nothing with this update")
@@ -147,8 +121,8 @@ fun Application.main() {
     launch {
         do {
             try {
-                botContext.forwardVkPosts()
-                val delayMinutes = settings.long(CHECK_PERIOD_MINUTES)
+                forwardVkPosts()
+                val delayMinutes = CHECK_PERIOD_MINUTES.long()
                 logger.info("Next post forward check after $delayMinutes minutes")
                 val delayMillis = TimeUnit.MINUTES.toMillis(delayMinutes)
                 delay(delayMillis)
@@ -158,7 +132,7 @@ fun Application.main() {
                 logger.error(message, e)
                 (e as? ClientRequestException)?.response?.bodyAsText()?.let { logger.error(it) }
                 val output = TgTextOutput(message)
-                ownerIds.forEach { tgMessageSender.sendChatMessage(it, output) }
+                BotOwnerIds.forEach { TelegramClient.sendChatMessage(it, output) }
                 delay(60000)
             }
         } while (true)
@@ -166,8 +140,8 @@ fun Application.main() {
     launch {
         do {
             try {
-                botContext.forwardSuggestions()
-                val delayMinutes = settings.long(SUGGESTION_POLLING_DELAY_MINUTES)
+                forwardSuggestions()
+                val delayMinutes = SUGGESTION_POLLING_DELAY_MINUTES.long()
                 logger.info("Next suggestion polling after $delayMinutes minutes")
                 val delayMillis = TimeUnit.MINUTES.toMillis(delayMinutes)
                 delay(delayMillis)
@@ -177,21 +151,21 @@ fun Application.main() {
                 logger.error(message, e)
                 (e as? ClientRequestException)?.response?.bodyAsText()?.let { logger.error(it) }
                 val output = TgTextOutput(message)
-                ownerIds.forEach { tgMessageSender.sendChatMessage(it, output) }
+                BotOwnerIds.forEach { TelegramClient.sendChatMessage(it, output) }
                 delay(60000)
             }
         } while (true)
     }
 }
 
-suspend fun BotContext.sendLastDaySchedule(onlyMissed: Boolean = false) {
+suspend fun sendLastDaySchedule(onlyMissed: Boolean = false) {
     doNotThrow("Failed to send last 24 hours schedule to TG") {
-        val communityId = settings.long(VK_COMMUNITY_ID)
-        val schedule = VkScheduleCommand.parseSchedule(settings)
-        val slotError = settings.long(VK_SCHEDULE_ERROR_MINUTES)
+        val communityId = VK_COMMUNITY_ID.long()
+        val schedule = VkScheduleCommand.parseSchedule()
+        val slotError = VK_SCHEDULE_ERROR_MINUTES.long()
         val now = zonedNow()
 
-        val last24hoursPosts = vkPostLoader
+        val last24hoursPosts = VkPostLoader
             .load(50, communityId)
             .filter { it.isPinned + it.markedAsAds == 0 }
             .map(VkPost::toPost)
@@ -216,26 +190,26 @@ suspend fun BotContext.sendLastDaySchedule(onlyMissed: Boolean = false) {
                 else -> "- Эта строчка не должна здесь быть..."
             }
         }
-        ownerIds.forEach { tgMessageSender.sendChatMessage(it, TgTextOutput(message.trim())) }
+        BotOwnerIds.forEach { TelegramClient.sendChatMessage(it, TgTextOutput(message.trim())) }
     }
 }
 
-suspend fun BotContext.forwardVkPosts(forcedByOwner: Boolean = false) {
-    val enabled = settings.bool(FORWARDING_ENABLED)
+suspend fun forwardVkPosts(forcedByOwner: Boolean = false) {
+    val enabled = FORWARDING_ENABLED.bool()
     if (enabled) {
         logger.info("Checking for new posts")
-        val postsCount = settings.int(POST_COUNT_TO_LOAD)
-        val condition = json.decodeFromString(Expr.serializer(), settings.str(CONDITION_EXPR))
-        val communityId = settings.long(VK_COMMUNITY_ID)
-        val footerMd = settings.str(FOOTER_MD)
-        val sendStatus = settings.bool(SEND_STATUS)
-        val targetChannel = settings.str(TARGET_CHANNEL)
-        val editorsChatId = settings.str(EDITOR_CHAT_ID)
+        val postsCount = POST_COUNT_TO_LOAD.int()
+        val condition = BotJson.decodeFromString(Expr.serializer(), CONDITION_EXPR.str())
+        val communityId = VK_COMMUNITY_ID.long()
+        val footerMd = FOOTER_MD.str()
+        val sendStatus = SEND_STATUS.bool()
+        val targetChannel = TARGET_CHANNEL.str()
+        val editorsChatId = EDITOR_CHAT_ID.str()
 
         val stats = mutableMapOf<String, Int>()
         val lastPosts: MutableList<Post> = mutableListOf()
         val postsToForward = doNotThrow("Failed to load or parse VK posts") {
-            vkPostLoader
+            VkPostLoader
                 .load(postsCount, communityId)
                 .filter { it.isPinned + it.markedAsAds == 0 }
                 .map(VkPost::toPost)
@@ -256,7 +230,7 @@ suspend fun BotContext.forwardVkPosts(forcedByOwner: Boolean = false) {
                     stats["condition"] = it.size
                     logger.info("${it.size} posts left after filtering by forward condition")
                 }
-                .filterNot { postStore.isPostedToTG(it) }
+                .filterNot { PostStore.isPostedToTG(it) }
                 .sortedBy { it.unixTime }
                 .also {
                     stats["already"] = it.size
@@ -269,7 +243,7 @@ suspend fun BotContext.forwardVkPosts(forcedByOwner: Boolean = false) {
         postsToForward?.forEach {
             doNotThrow("Post https://vk.com/wall${communityId}\\_${it.id} passes the criteria but failed to send\nTo have it in telegram, post manually.\nAlso") {
                 val prepared = TgPreparedPost(it.text, it.imageUrl, footerMd)
-                if (postStore.insert(it)) {
+                if (PostStore.insert(it)) {
                     logger.info(
                         "Inserted new post https://vk.com/wall${communityId}_${it.id} '${
                             it.text.trimToLength(
@@ -294,8 +268,8 @@ suspend fun BotContext.forwardVkPosts(forcedByOwner: Boolean = false) {
                         "${stats["condition"]} after filtering by condition\n" +
                         "Posts:\n> " + forwarded.joinToString("\n> ")
                 logger.info(message)
-                ownerIds.forEach {
-                    tgMessageSender.sendChatMessage(
+                BotOwnerIds.forEach {
+                    TelegramClient.sendChatMessage(
                         it,
                         TgTextOutput(message),
                         disableLinkPreview = true
@@ -308,14 +282,14 @@ suspend fun BotContext.forwardVkPosts(forcedByOwner: Boolean = false) {
                 return@doNotThrow
             }
 
-            val vkFreezeIgnoreStart = if (settings.str(VK_FREEZE_IGNORE_START).isNotBlank()) LocalTime.parse(settings.str(VK_FREEZE_IGNORE_START)) else null
-            val vkFreezeIgnoreEnd = if (settings.str(VK_FREEZE_IGNORE_END).isNotBlank()) LocalTime.parse(settings.str(VK_FREEZE_IGNORE_END)) else null
-            val vkFreezeTimeout = settings.int(VK_FREEZE_TIMEOUT_MINUTES)
-            val vkFreezeMentions = settings.str(VK_FREEZE_MENTIONS)
-            val vkFreezeNotifyTimeout = settings.bool(NOTIFY_FREEZE_TIMEOUT)
-            val vkFreezeNotifySchedule = settings.bool(NOTIFY_FREEZE_SCHEDULE)
-            val vkFreezeSendStatus = settings.bool(SEND_FREEZE_STATUS)
-            val slotError = settings.long(VK_SCHEDULE_ERROR_MINUTES)
+            val vkFreezeIgnoreStart = if (VK_FREEZE_IGNORE_START.str().isNotBlank()) LocalTime.parse(VK_FREEZE_IGNORE_START.str()) else null
+            val vkFreezeIgnoreEnd = if (VK_FREEZE_IGNORE_END.str().isNotBlank()) LocalTime.parse(VK_FREEZE_IGNORE_END.str()) else null
+            val vkFreezeTimeout = VK_FREEZE_TIMEOUT_MINUTES.int()
+            val vkFreezeMentions = VK_FREEZE_MENTIONS.str()
+            val vkFreezeNotifyTimeout = NOTIFY_FREEZE_TIMEOUT.bool()
+            val vkFreezeNotifySchedule = NOTIFY_FREEZE_SCHEDULE.bool()
+            val vkFreezeSendStatus = SEND_FREEZE_STATUS.bool()
+            val slotError = VK_SCHEDULE_ERROR_MINUTES.long()
 
             if (vkFreezeIgnoreStart != null && vkFreezeIgnoreEnd != null) {
                 if (zonedNow().toLocalTime().inLocalRange(vkFreezeIgnoreStart, vkFreezeIgnoreEnd)) {
@@ -332,10 +306,10 @@ suspend fun BotContext.forwardVkPosts(forcedByOwner: Boolean = false) {
             }
 
             val latestSlotTime = zonedNow().minusMinutes(min(freeze.toLong() - 1, slotError)).toLocalTime()
-            val schedule = VkScheduleCommand.parseSchedule(settings)
+            val schedule = VkScheduleCommand.parseSchedule()
             val involvedSlots = schedule.filter { slot -> slot.time.inLocalRange(oldestPostTime, latestSlotTime) }
             val latestSchedule = mergePostsWithSchedule(involvedSlots, lastPosts, slotError)
-            val checkPeriod = settings.int(CHECK_PERIOD_MINUTES)
+            val checkPeriod = CHECK_PERIOD_MINUTES.int()
 
             if (latestSchedule.last().second == null && freeze < vkFreezeTimeout) {
                 val slot = latestSchedule.last().first
@@ -348,9 +322,9 @@ suspend fun BotContext.forwardVkPosts(forcedByOwner: Boolean = false) {
                         post.localTime.simpleFormatTime(),
                         freeze
                     )
-                    tgMessageSender.sendChatMessage(editorsChatId, TgTextOutput(message), disableLinkPreview = true)
-                    if (vkFreezeSendStatus) ownerIds.forEach {
-                        tgMessageSender.sendChatMessage(
+                    TelegramClient.sendChatMessage(editorsChatId, TgTextOutput(message), disableLinkPreview = true)
+                    if (vkFreezeSendStatus) BotOwnerIds.forEach {
+                        TelegramClient.sendChatMessage(
                             it,
                             TgTextOutput(message),
                             disableLinkPreview = true
@@ -374,16 +348,16 @@ suspend fun BotContext.forwardVkPosts(forcedByOwner: Boolean = false) {
                         else -> "- Эта строчка не должна здесь быть..."
                     }
                 }
-                if (vkFreezeNotifyTimeout) tgMessageSender.sendChatMessage(editorsChatId, TgTextOutput(message), disableLinkPreview = true)
-                if (vkFreezeSendStatus) ownerIds.forEach { tgMessageSender.sendChatMessage(it, TgTextOutput(message), disableLinkPreview = true) }
+                if (vkFreezeNotifyTimeout) TelegramClient.sendChatMessage(editorsChatId, TgTextOutput(message), disableLinkPreview = true)
+                if (vkFreezeSendStatus) BotOwnerIds.forEach { TelegramClient.sendChatMessage(it, TgTextOutput(message), disableLinkPreview = true) }
             }
 
         }
 
         doNotThrow("Failed to clean up old posts from TG") {
-            val retentionDays = settings.int(RETENTION_PERIOD_DAYS)
+            val retentionDays = RETENTION_PERIOD_DAYS.int()
             logger.info("Deleting posts created more than $retentionDays days ago")
-            val deleted = postStore.cleanupOldPosts(retentionDays)
+            val deleted = PostStore.cleanupOldPosts(retentionDays)
             logger.info("Deleted $deleted posts created more than $retentionDays days ago")
         }
     } else {
@@ -457,19 +431,19 @@ private fun generateSlotMissingMessage(slotTime: String, user: String, lastPostT
         .replace("{freeze}", freeze.toString())
 
 
-suspend fun BotContext.forwardSuggestions(forcedByOwner: Boolean = false) {
-    val targetChat = settings.str(EDITOR_CHAT_ID)
-    val suggestionsEnabled = settings.bool(SUGGESTIONS_ENABLED)
-    val footerMd = settings.str(FOOTER_MD)
+suspend fun forwardSuggestions(forcedByOwner: Boolean = false) {
+    val targetChat = EDITOR_CHAT_ID.str()
+    val suggestionsEnabled = SUGGESTIONS_ENABLED.bool()
+    val footerMd = FOOTER_MD.str()
     if (suggestionsEnabled) {
         logger.info("Checking for posts which are ready for suggestion")
         doNotThrow("Failed to change suggestions status PENDING_USER_EDIT -> READY_FOR_SUGGESTION") {
-            val suggestions = suggestionStore.findByStatus(SuggestionStatus.PENDING_USER_EDIT)
-            val editTimeMinutes = settings.long(USER_EDIT_TIME_MINUTES)
+            val suggestions = SuggestionStore.findByStatus(SuggestionStatus.PENDING_USER_EDIT)
+            val editTimeMinutes = USER_EDIT_TIME_MINUTES.long()
             for (suggestion in suggestions) {
                 val diffMinutes = ChronoUnit.MINUTES.between(suggestion.insertedTime.toInstant(), Instant.now())
                 if (diffMinutes >= editTimeMinutes) {
-                    suggestionStore.update(
+                    SuggestionStore.update(
                         suggestion.copy(status = SuggestionStatus.READY_FOR_SUGGESTION),
                         byAuthor = true
                     )
@@ -479,7 +453,7 @@ suspend fun BotContext.forwardSuggestions(forcedByOwner: Boolean = false) {
         logger.info("Checking for new suggested posts")
         var forwarded = 0
         val suggestions = doNotThrow("Failed to fetch READY_FOR_SUGGESTION suggestions from DB") {
-            suggestionStore.findByStatus(SuggestionStatus.READY_FOR_SUGGESTION)
+            SuggestionStore.findByStatus(SuggestionStatus.READY_FOR_SUGGESTION)
         }
         suggestions?.forEach { suggestion ->
             doNotThrow("Failed to send single suggestion to editors group") {
@@ -489,7 +463,7 @@ suspend fun BotContext.forwardSuggestions(forcedByOwner: Boolean = false) {
                 )
                 val editorMessage = sendTelegramPost(targetChat, post, EditorButtonAction.ACTION_KEYBOARD)
                 if (editorMessage != null) {
-                    suggestionStore.update(
+                    SuggestionStore.update(
                         suggestion.copy(
                             editorChatId = editorMessage.chat.id,
                             editorMessageId = editorMessage.id,
@@ -509,8 +483,8 @@ suspend fun BotContext.forwardSuggestions(forcedByOwner: Boolean = false) {
                     "\nEditors forgot to review $forgotten posts." +
                     "\nPosted $scheduled scheduled posts."
             logger.info(message)
-            if (settings.bool(SEND_SUGGESTION_STATUS)) {
-                ownerIds.forEach { tgMessageSender.sendChatMessage(it, TgTextOutput(message)) }
+            if (SEND_SUGGESTION_STATUS.bool()) {
+                BotOwnerIds.forEach { TelegramClient.sendChatMessage(it, TgTextOutput(message)) }
             }
         }
     } else {
@@ -518,9 +492,9 @@ suspend fun BotContext.forwardSuggestions(forcedByOwner: Boolean = false) {
     }
 }
 
-suspend fun BotContext.notifyAboutForgottenSuggestions(force: Boolean = false, createdBeforeHours: Int = 0): Int {
+suspend fun notifyAboutForgottenSuggestions(force: Boolean = false, createdBeforeHours: Int = 0): Int {
     val start = LocalTime.of(0, 0, 0, 0)
-    val end = LocalTime.of(0, settings.int(SUGGESTION_POLLING_DELAY_MINUTES), 0, 0)
+    val end = LocalTime.of(0, SUGGESTION_POLLING_DELAY_MINUTES.int(), 0, 0)
     val now = zonedNow().toLocalTime()
     var forgotten = 0
     if (force || (now in start..end)) {
@@ -528,7 +502,7 @@ suspend fun BotContext.notifyAboutForgottenSuggestions(force: Boolean = false, c
             logger.info("New day, checking for forgotten posts")
         }
         val forgottenSuggestions = doNotThrow("Failed to fetch PENDING_EDITOR_REVIEW suggestions from DB") {
-            suggestionStore.findByStatus(SuggestionStatus.PENDING_EDITOR_REVIEW)
+            SuggestionStore.findByStatus(SuggestionStatus.PENDING_EDITOR_REVIEW)
         }
         logger.info("Currently there are ${forgottenSuggestions?.size} forgotten posts, notifying...")
         forgottenSuggestions?.forEach { suggestion ->
@@ -559,20 +533,20 @@ suspend fun BotContext.notifyAboutForgottenSuggestions(force: Boolean = false, c
     return forgotten
 }
 
-private suspend fun BotContext.sendPendingReviewNotification(
+private suspend fun sendPendingReviewNotification(
     suggestion: UserSuggestion,
     hoursSinceCreated: Long
-) = tgMessageSender.sendChatMessage(
+) = TelegramClient.sendChatMessage(
     suggestion.editorChatId.toString(),
     TgTextOutput("Пост ждёт обработки, создан $hoursSinceCreated часов назад"),
     replyMessageId = suggestion.editorMessageId
 )
 
-private suspend fun BotContext.postScheduledSuggestions(footerMd: String): Int {
-    val targetChannel = settings.str(TARGET_CHANNEL)
+private suspend fun postScheduledSuggestions(footerMd: String): Int {
+    val targetChannel = TARGET_CHANNEL.str()
     var scheduled = 0
     val suggestions = doNotThrow("Failed to fetch scheduled suggestions from DB") {
-        suggestionStore.findReadyForSchedule()
+        SuggestionStore.findReadyForSchedule()
     }
     logger.info("Currently there are ${suggestions?.size} ready for schedule posts, notifying...")
     suggestions?.forEach { suggestion ->
@@ -584,15 +558,15 @@ private suspend fun BotContext.postScheduledSuggestions(footerMd: String): Int {
                     .authorReference(anonymous)
             )
             sendTelegramPost(targetChannel, post)
-            suggestionStore.removeByChatAndMessageId(
+            SuggestionStore.removeByChatAndMessageId(
                 suggestion.authorChatId,
                 suggestion.authorMessageId,
                 byAuthor = true
             )
             scheduled++
-            if (settings.bool(SEND_PROMOTION_FEEDBACK)) {
+            if (SEND_PROMOTION_FEEDBACK.bool()) {
                 try {
-                    tgMessageSender.sendChatMessage(
+                    TelegramClient.sendChatMessage(
                         suggestion.authorChatId.toString(),
                         TgTextOutput(
                             UserMessages.postPromotedMessage.format(
@@ -614,7 +588,7 @@ private suspend fun BotContext.postScheduledSuggestions(footerMd: String): Int {
     return scheduled
 }
 
-suspend inline fun <T> BotContext.doNotThrow(message: String, block: () -> T?): T? = try {
+suspend inline fun <T> doNotThrow(message: String, block: () -> T?): T? = try {
     block()
 } catch (e: Exception) {
     val response = (e as? ClientRequestException)?.response
@@ -626,40 +600,40 @@ suspend inline fun <T> BotContext.doNotThrow(message: String, block: () -> T?): 
         "$message, please check logs, error message:\n`$clientError`\n\nText parameter (first 400 chars): `$textParameter`\n\n"
     logger.error(markdownText, e)
     val output = TgTextOutput(markdownText)
-    ownerIds.forEach { tgMessageSender.sendChatMessage(it, output) }
+    BotOwnerIds.forEach { TelegramClient.sendChatMessage(it, output) }
     null
 }
 
-suspend fun BotContext.sendTelegramPost(
+suspend fun sendTelegramPost(
     targetChat: String,
     prepared: TgPreparedPost,
     keyboardMarkup: InlineKeyboardMarkup? = null
 ): Message? {
-    val usePhotoMode = settings.bool(USE_PHOTO_MODE)
-    val keyboardJson = keyboardMarkup?.let { json.encodeToString(InlineKeyboardMarkup.serializer(), keyboardMarkup) }
+    val usePhotoMode = USE_PHOTO_MODE.bool()
+    val keyboardJson = keyboardMarkup?.let { BotJson.encodeToString(InlineKeyboardMarkup.serializer(), keyboardMarkup) }
     return when {
-        usePhotoMode && prepared.canBeSendAsImageWithCaption -> tgMessageSender
+        usePhotoMode && prepared.canBeSendAsImageWithCaption -> TelegramClient
             .sendChatPhoto(
                 targetChat,
                 TgImageOutput(prepared.withoutImage, prepared.imageUrl(), keyboardJson)
             ).result
 
         prepared.withImage.length > 4096 -> {
-            val (ok, error, result) = telegraphPostCreator.createPost(prepared)
+            val (ok, error, result) = TelegraphPostCreator.createPost(prepared)
             when {
                 ok && result != null -> {
                     val output = TgTextOutput(
                         "Слишком длиннобугурт, поэтому читайте в телеграфе: [${result.title}](${result.url})${prepared.formattedFooter}",
                         keyboardJson
                     )
-                    tgMessageSender.sendChatMessage(targetChat, output, disableLinkPreview = false).result
+                    TelegramClient.sendChatMessage(targetChat, output, disableLinkPreview = false).result
                 }
 
                 else -> {
                     val message = "Failed to create Telegraph post, please check logs, error message:\n`${error}`"
                     logger.error(message)
                     val output = TgTextOutput(message)
-                    ownerIds.forEach { id -> tgMessageSender.sendChatMessage(id, output) }
+                    BotOwnerIds.forEach { id -> TelegramClient.sendChatMessage(id, output) }
                     null
                 }
             }
@@ -670,60 +644,11 @@ suspend fun BotContext.sendTelegramPost(
             val disableLinkPreview = prepared.footerMarkdown.contains("https://")
                     && !prepared.text.contains("https://")
                     && !(prepared.maybeImage?.isImageUrl() ?: false)
-            tgMessageSender.sendChatMessage(
+            TelegramClient.sendChatMessage(
                 targetChat,
                 TgTextOutput(prepared.withImage, keyboardJson),
                 disableLinkPreview = disableLinkPreview
             ).result
         }
     }
-}
-
-
-private fun initializeDataSource(dbUrl: String) {
-    val dbUri = URI(dbUrl)
-    val (username: String, password: String) = dbUri.userInfo.split(":")
-    val jdbcUrl = "jdbc:postgresql://${dbUri.host}:${dbUri.port}${dbUri.path}?currentSchema=public"
-    HikariCP.default(jdbcUrl, username, password)
-    SessionImpl.defaultDataSource = { HikariCP.dataSource() }
-    logger.info("JDBC url: $jdbcUrl")
-}
-
-private fun insertDefaultSettings(settings: Settings, json: Json) = with(settings) {
-    putIfAbsent(TARGET_CHANNEL, "@tegebetetest")
-    putIfAbsent(CHECK_PERIOD_MINUTES, "10")
-    putIfAbsent(RETENTION_PERIOD_DAYS, "15")
-    putIfAbsent(POST_COUNT_TO_LOAD, "300")
-    putIfAbsent(VK_COMMUNITY_ID, "-57536014")
-    putIfAbsent(FORWARDING_ENABLED, "false")
-    putIfAbsent(USE_PHOTO_MODE, "true")
-    putIfAbsent(FOOTER_MD, "")
-    putIfAbsent(SEND_STATUS, "true")
-    putIfAbsent(
-        CONDITION_EXPR, json.encodeToString(
-            Expr.serializer(),
-            Or(
-                Likes(ConditionalOperator.GREATER_OR_EQUAL, 1000),
-                Reposts(ConditionalOperator.GREATER_OR_EQUAL, 15)
-            )
-        )
-    )
-    putIfAbsent(SUGGESTIONS_ENABLED, "true")
-    putIfAbsent(EDITOR_CHAT_ID, "-1001519413163")
-    putIfAbsent(USER_EDIT_TIME_MINUTES, "10")
-    putIfAbsent(USER_SUGGESTION_DELAY_MINUTES, "30")
-    putIfAbsent(SUGGESTION_POLLING_DELAY_MINUTES, "10")
-    putIfAbsent(SEND_PROMOTION_FEEDBACK, "true")
-    putIfAbsent(SEND_DELETION_FEEDBACK, "true")
-    putIfAbsent(SEND_SUGGESTION_STATUS, "true")
-    putIfAbsent(NOTIFY_FREEZE_TIMEOUT, "true")
-    putIfAbsent(NOTIFY_FREEZE_SCHEDULE, "true")
-    putIfAbsent(VK_FREEZE_TIMEOUT_MINUTES, "90")
-    putIfAbsent(VK_FREEZE_IGNORE_START, "")
-    putIfAbsent(VK_FREEZE_IGNORE_END, "")
-    putIfAbsent(VK_FREEZE_MENTIONS, "anon")
-    putIfAbsent(VK_SCHEDULE, "5:00 Улиточка")
-    putIfAbsent(VK_SCHEDULE_ERROR_MINUTES, "5")
-    putIfAbsent(SEND_FREEZE_STATUS, "true")
-    putIfAbsent(GATEKEEPER, "anon")
 }

@@ -1,6 +1,6 @@
 package com.tgbt.misc
 
-import com.tgbt.bot.BotContext
+import com.tgbt.settings.Setting
 import java.io.InputStreamReader
 import java.net.URI
 import java.net.URISyntaxException
@@ -21,13 +21,6 @@ fun String.escapeMarkdown() = replace("*", "\\*")
     .replace("_", "\\_")
     .replace("`", "\\`")
 
-/**
- * Checks that two strings has different set of letters (or in different order)
- */
-infix fun String?.lettersDiffer(string: String?): Boolean =
-    this?.filter(Char::isLetterOrDigit) != string?.filter(Char::isLetterOrDigit)
-
-
 fun String.isImageUrl(): Boolean {
     try {
         val uri = URI(this)
@@ -40,7 +33,7 @@ fun String.isImageUrl(): Boolean {
     }
 }
 
-fun loadResourceAsString(resourceBaseName: String): String = BotContext::class.java.classLoader
+fun loadResourceAsString(resourceBaseName: String): String = Setting::class.java.classLoader
     .getResourceAsStream(resourceBaseName)
     .let { it ?: throw IllegalStateException("Null resource stream for $resourceBaseName") }
     .use { InputStreamReader(it).use(InputStreamReader::readText) }

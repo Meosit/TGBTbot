@@ -1,18 +1,19 @@
 package com.tgbt.telegram
 
+import com.tgbt.BotHttpClient
+import com.tgbt.BotToken
 import com.tgbt.telegram.output.TgImageOutput
 import com.tgbt.telegram.output.TgMessageOutput
-import io.ktor.client.*
 import io.ktor.client.call.*
 import io.ktor.client.request.*
 
 
-class TgMessageSender(private val httpClient: HttpClient, apiToken: String) {
+object TelegramClient {
 
-    private val apiUrl = "https://api.telegram.org/bot$apiToken"
+    private val apiUrl = "https://api.telegram.org/bot$BotToken"
 
     suspend fun editChatMessageKeyboard(chatId: String, messageId: Long, keyboardJson: String) =
-        httpClient.post {
+        BotHttpClient.post {
             url("$apiUrl/editMessageReplyMarkup")
             parameter("chat_id", chatId)
             parameter("message_id", messageId)
@@ -20,7 +21,7 @@ class TgMessageSender(private val httpClient: HttpClient, apiToken: String) {
         }.body<TelegramMessageResponse>()
 
     suspend fun editChatMessageText(chatId: String, messageId: Long, message: String, keyboardJson: String?, disableLinkPreview: Boolean = false) =
-        httpClient.post {
+        BotHttpClient.post {
             url("$apiUrl/editMessageText")
             parameter("chat_id", chatId)
             parameter("message_id", messageId)
@@ -31,7 +32,7 @@ class TgMessageSender(private val httpClient: HttpClient, apiToken: String) {
         }.body<TelegramMessageResponse>()
 
     suspend fun editChatMessageCaption(chatId: String, messageId: Long, caption: String, keyboardJson: String?) =
-        httpClient.post {
+        BotHttpClient.post {
             url("$apiUrl/editMessageCaption")
             parameter("chat_id", chatId)
             parameter("message_id", messageId)
@@ -41,7 +42,7 @@ class TgMessageSender(private val httpClient: HttpClient, apiToken: String) {
         }.body<TelegramMessageResponse>()
 
     suspend fun editChatMessagePhoto(chatId: String, messageId: Long, imageUrl: String) =
-        httpClient.post {
+        BotHttpClient.post {
             url("$apiUrl/editMessageMedia")
             parameter("chat_id", chatId)
             parameter("message_id", messageId)
@@ -49,7 +50,7 @@ class TgMessageSender(private val httpClient: HttpClient, apiToken: String) {
         }.body<TelegramMessageResponse>()
 
     suspend fun sendChatMessage(chatId: String, output: TgMessageOutput, replyMessageId: Long? = null, disableLinkPreview: Boolean = false) =
-        httpClient.post {
+        BotHttpClient.post {
             url("$apiUrl/sendMessage")
             parameter("text", output.markdown())
             parameter("parse_mode", "Markdown")
@@ -60,7 +61,7 @@ class TgMessageSender(private val httpClient: HttpClient, apiToken: String) {
         }.body<TelegramMessageResponse>()
 
     suspend fun sendChatPhoto(chatId: String, output: TgImageOutput) =
-        httpClient.post {
+        BotHttpClient.post {
             url("$apiUrl/sendPhoto")
             parameter("caption", output.markdown())
             parameter("photo", output.imageUrl())
@@ -70,7 +71,7 @@ class TgMessageSender(private val httpClient: HttpClient, apiToken: String) {
         }.body<TelegramMessageResponse>()
 
     suspend fun pingCallbackQuery(queryId: String, notificationText: String? = null) {
-        httpClient.post {
+        BotHttpClient.post {
             url("$apiUrl/answerCallbackQuery")
             parameter("callback_query_id", queryId)
             notificationText?.let { parameter("text", it) }
@@ -78,7 +79,7 @@ class TgMessageSender(private val httpClient: HttpClient, apiToken: String) {
     }
 
     suspend fun leaveGroup(chatId: String) {
-        httpClient.post {
+        BotHttpClient.post {
             url("$apiUrl/leaveChat")
             parameter("chat_id", chatId)
         }

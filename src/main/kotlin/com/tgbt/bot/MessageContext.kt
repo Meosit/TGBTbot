@@ -1,5 +1,7 @@
 package com.tgbt.bot
 
+import com.tgbt.BotOwnerIds
+import com.tgbt.ban.BanStore
 import com.tgbt.bot.editor.EditorHelpCommand
 import com.tgbt.bot.editor.EditorUpdatePostCommand
 import com.tgbt.bot.editor.ForgottenPostsCommand
@@ -10,17 +12,14 @@ import com.tgbt.misc.escapeMarkdown
 import com.tgbt.misc.trimToLength
 import com.tgbt.settings.Setting.EDITOR_CHAT_ID
 import com.tgbt.settings.Setting.SUGGESTIONS_ENABLED
-import com.tgbt.telegram.Message
-import com.tgbt.telegram.anyText
-import com.tgbt.telegram.isPrivate
+import com.tgbt.suggestion.SuggestionStore
+import com.tgbt.telegram.*
 import com.tgbt.telegram.output.TgTextOutput
-import com.tgbt.telegram.simpleRef
 import io.ktor.client.plugins.*
 import io.ktor.client.statement.*
 import org.slf4j.LoggerFactory
 
 data class MessageContext(
-    val bot: BotContext,
     val chatId: String,
     val isEdit: Boolean,
     val messageText: String,
@@ -28,12 +27,10 @@ data class MessageContext(
     val replyMessage: Message?
 ) {
     constructor(
-        botContext: BotContext,
         message: Message,
         isEdit: Boolean
     ) :
             this(
-                botContext,
                 message.chat.id.toString(),
                 isEdit,
                 message.anyText ?: "",
@@ -60,41 +57,42 @@ data class MessageContext(
                 logger.error(line)
             }
             val output = TgTextOutput(message)
-            bot.ownerIds.forEach { bot.tgMessageSender.sendChatMessage(it, output) }
+            BotOwnerIds.forEach { TelegramClient.sendChatMessage(it, output) }
         }
     }
 
     private suspend fun handleUpdateInternal() = when {
-        chatId in bot.ownerIds -> {
+        chatId in BotOwnerIds -> {
             val command = OWNER_COMMANDS.find { it.canHandle(messageText) }
-            command?.handleCommand(this) ?: bot.tgMessageSender
+            command?.handleCommand(this) ?: TelegramClient
                 .sendChatMessage(chatId, TgTextOutput("Unknown owner command"))
         }
         message.chat.isPrivate -> {
             val command = USER_COMMANDS.find { it.canHandle(messageText) }
-            val ban = bot.banStore.findByChatId(message.chat.id)
+            val ban = BanStore.findByChatId(message.chat.id)
             if (ban == null) {
-                command?.handleCommand(this) ?: if (bot.settings.bool(SUGGESTIONS_ENABLED)) {
-                    val suggestion = bot.suggestionStore.findLastByAuthorChatId(message.chat.id)
+                command?.handleCommand(this) ?: if (SUGGESTIONS_ENABLED.bool()) {
+                    val suggestion = SuggestionStore.findLastByAuthorChatId(message.chat.id)
                     if (suggestion == null) {
                         AddPostCommand.handleCommand(this)
                     } else {
                         UpdatePostCommand(suggestion).handleCommand(this)
                     }
                 } else {
-                    bot.tgMessageSender.sendChatMessage(chatId, TgTextOutput(UserMessages.suggestionsDisabledErrorMessage))
+                    TelegramClient.sendChatMessage(chatId, TgTextOutput(UserMessages.suggestionsDisabledErrorMessage))
                 }
             } else {
-                bot.tgMessageSender.sendChatMessage(chatId, TgTextOutput(UserMessages.bannedErrorMessage
+                TelegramClient.sendChatMessage(
+                    chatId, TgTextOutput(UserMessages.bannedErrorMessage
                     .format(ban.postTeaser.escapeMarkdown(), ban.reason.escapeMarkdown())))
             }
         }
-        bot.settings.str(EDITOR_CHAT_ID) == chatId -> {
+        EDITOR_CHAT_ID.str() == chatId -> {
             val command = EDITOR_COMMANDS.find { it.canHandle(messageText) }
             when {
                 command != null -> command.handleCommand(this)
                 replyMessage?.from?.isBot == true -> {
-                    val suggestion = bot.suggestionStore.findByChatAndMessageId(message.chat.id, replyMessage.id, byAuthor = false)
+                    val suggestion = SuggestionStore.findByChatAndMessageId(message.chat.id, replyMessage.id, byAuthor = false)
                     if (suggestion != null) {
                         EditorUpdatePostCommand(suggestion).handleCommand(this)
                     }
@@ -104,8 +102,8 @@ data class MessageContext(
             }
         }
         else -> {
-            bot.ownerIds.forEach { bot.tgMessageSender.sendChatMessage(it, TgTextOutput("Bot added in non-editors chat! Message dump:\n```$message```")) }
-            bot.tgMessageSender.leaveGroup(chatId)
+            BotOwnerIds.forEach { TelegramClient.sendChatMessage(it, TgTextOutput("Bot added in non-editors chat! Message dump:\n```$message```")) }
+            TelegramClient.leaveGroup(chatId)
         }
     }
 

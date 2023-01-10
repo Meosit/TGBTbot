@@ -7,7 +7,7 @@ import com.tgbt.sendLastDaySchedule
 object LastDayMissedCommand : BotCommand {
     override val command = "/last_day_missed"
 
-    override suspend fun MessageContext.handle(): Unit = with(bot) {
+    override suspend fun MessageContext.handle() {
         sendLastDaySchedule(onlyMissed = true)
     }
 

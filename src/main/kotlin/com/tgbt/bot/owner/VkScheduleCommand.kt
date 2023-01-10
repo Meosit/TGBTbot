@@ -5,7 +5,7 @@ import com.tgbt.bot.MessageContext
 import com.tgbt.misc.escapeMarkdown
 import com.tgbt.misc.simpleFormatTime
 import com.tgbt.settings.Setting
-import com.tgbt.settings.Settings
+import com.tgbt.telegram.TelegramClient
 import com.tgbt.telegram.output.TgTextOutput
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
@@ -21,19 +21,19 @@ object VkScheduleCommand : BotCommand {
     private val scheduleItemRegex = """^(\d?\d[:.]\d\d)\s(.+)$""".toRegex()
     private val timePattern = DateTimeFormatter.ofPattern("H:mm")
 
-    override suspend fun MessageContext.handle(): Unit = with(bot) {
+    override suspend fun MessageContext.handle() {
         val value = messageText.removePrefix(command)
         val md = try {
             val scheduleItems = parseSchedule(value)
             val sortedValue = scheduleItems
                 .sortedBy { it.time }
                 .joinToString(separator = "\n") { "${it.time.simpleFormatTime()} ${it.user}" }
-            settings[Setting.VK_SCHEDULE] = sortedValue
+            Setting.VK_SCHEDULE.save(sortedValue)
             "Schedule successfully set, parsed ${scheduleItems.size} time slots"
         } catch (e: VkScheduleParseException) {
             "Failed to parse schedule at row ${e.index}: `${e.row.escapeMarkdown()}`"
         }
-        tgMessageSender.sendChatMessage(chatId, TgTextOutput(md), message.id)
+        TelegramClient.sendChatMessage(chatId, TgTextOutput(md), message.id)
     }
 
     private fun parseSchedule(raw: String): List<VkScheduleSlot> = raw
@@ -50,5 +50,5 @@ object VkScheduleCommand : BotCommand {
         .filterNotNull()
         .toList()
 
-    fun parseSchedule(settings: Settings) = parseSchedule(settings.str(Setting.VK_SCHEDULE))
+    fun parseSchedule() = parseSchedule(Setting.VK_SCHEDULE.str())
 }
