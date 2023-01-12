@@ -11,6 +11,7 @@ import com.tgbt.post.*
 import com.tgbt.settings.Setting.*
 import com.tgbt.suggestion.*
 import com.tgbt.telegram.*
+import com.tgbt.telegram.api.*
 import com.tgbt.telegram.output.TgImageOutput
 import com.tgbt.telegram.output.TgTextOutput
 import com.tgbt.vk.VkPost
@@ -62,17 +63,15 @@ val BotToken: String = System.getenv("TG_BOT_TOKEN")
 val BotOwnerIds: List<String> = if (System.getenv("OWNER_IDS").isNullOrBlank()) emptyList() else
     System.getenv("OWNER_IDS").split(',')
 
-fun requireEnvs(vararg envs: String) {
-    val missing = envs.filter { System.getenv(it) == null }.toList()
-    if (missing.isNotEmpty())
-        throw IllegalStateException("Missing ${missing.size} required envs: ${missing.joinToString()}")
-}
+val AppUrl: String = System.getenv("TELEGRAPH_TOKEN")
+val TelegraphToken: String = System.getenv("TELEGRAPH_TOKEN")
+val VkToken: String = System.getenv("VK_SERVICE_TOKEN")
+val DatabaseUrl: String = System.getenv("DATABASE_URL")
 
 fun main(args: Array<String>) = EngineMain.main(args)
 
 @Suppress("unused")
 fun Application.main() {
-    requireEnvs("APP_URL", "DATABASE_URL", "VK_SERVICE_TOKEN", "TG_BOT_TOKEN", "TELEGRAPH_TOKEN", "OWNER_IDS", "OWNER_IDS")
     install(DefaultHeaders)
     install(CallLogging)
     install(io.ktor.server.plugins.contentnegotiation.ContentNegotiation) {

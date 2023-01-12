@@ -1,4 +1,4 @@
-package com.tgbt.telegram
+package com.tgbt.telegram.api
 
 import com.tgbt.misc.escapeMarkdown
 import kotlinx.serialization.SerialName

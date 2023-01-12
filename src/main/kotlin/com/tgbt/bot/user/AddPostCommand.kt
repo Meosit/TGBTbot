@@ -10,9 +10,9 @@ import com.tgbt.suggestion.SuggestionStore
 import com.tgbt.suggestion.UserSuggestion
 import com.tgbt.suggestion.postTextTeaser
 import com.tgbt.telegram.TelegramClient
-import com.tgbt.telegram.imageId
+import com.tgbt.telegram.api.imageId
+import com.tgbt.telegram.api.verboseUserName
 import com.tgbt.telegram.output.TgTextOutput
-import com.tgbt.telegram.verboseUserName
 import org.slf4j.LoggerFactory
 
 object AddPostCommand: PostCommand() {

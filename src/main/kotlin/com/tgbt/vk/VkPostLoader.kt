@@ -1,6 +1,7 @@
 package com.tgbt.vk
 
 import com.tgbt.BotHttpClient
+import com.tgbt.VkToken
 import io.ktor.client.call.*
 import io.ktor.client.request.*
 import org.slf4j.LoggerFactory
@@ -11,7 +12,7 @@ private const val MAX_POSTS_COUNT = 100
 private val logger = LoggerFactory.getLogger(VkPostLoader::class.java)
 
 object VkPostLoader {
-    private val apiBaseUrl = "https://api.vk.com/method/wall.get?v=$VK_API_VERSION&filter=owner&access_token=${System.getenv("VK_SERVICE_TOKEN")}"
+    private val apiBaseUrl = "https://api.vk.com/method/wall.get?v=$VK_API_VERSION&filter=owner&access_token=$VkToken"
 
     suspend fun load(totalCount: Int, communityId: Long): List<VkPost> {
         val items = ArrayList<VkPost>(totalCount)
