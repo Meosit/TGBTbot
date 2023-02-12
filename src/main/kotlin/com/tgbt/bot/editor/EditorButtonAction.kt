@@ -10,7 +10,7 @@ import com.tgbt.misc.isImageUrl
 import com.tgbt.misc.simpleFormatTime
 import com.tgbt.misc.trimToLength
 import com.tgbt.post.TgPreparedPost
-import com.tgbt.sendTelegramPost
+import com.tgbt.post.sendToTelegram
 import com.tgbt.settings.Setting
 import com.tgbt.suggestion.*
 import com.tgbt.telegram.TelegramClient
@@ -172,26 +172,24 @@ object EditorButtonAction {
         if (suggestion?.editorChatId != null && suggestion.editorMessageId != null) {
             val actuallyDeleted = SuggestionStore.removeByChatAndMessageId(suggestion.editorChatId, suggestion.editorMessageId, byAuthor = false)
             if (actuallyDeleted) {
-                if (Setting.SEND_DELETION_FEEDBACK.bool()) {
-                    val outputMessage = if (rejectComment != null) {
-                        UserMessages.postDiscardedWithCommentMessage.format(suggestion.postTextTeaser().escapeMarkdown(), rejectComment.escapeMarkdown())
+                val outputMessage = if (rejectComment != null) {
+                    UserMessages.postDiscardedWithCommentMessage.format(suggestion.postTextTeaser().escapeMarkdown(), rejectComment.escapeMarkdown())
+                } else {
+                    UserMessages.postDiscardedMessage.format(suggestion.postTextTeaser().escapeMarkdown())
+                }
+                try {
+                    TelegramClient.sendChatMessage(suggestion.authorChatId.toString(), TgTextOutput(outputMessage))
+                } catch (e: ClientRequestException) {
+                    if (e.response.status == HttpStatusCode.Forbidden) {
+                        logger.info("Skipping deletion feedback for user ${suggestion.authorName} (${suggestion.authorChatId}): FORBIDDEN")
                     } else {
-                        UserMessages.postDiscardedMessage.format(suggestion.postTextTeaser().escapeMarkdown())
-                    }
-                    try {
-                        TelegramClient.sendChatMessage(suggestion.authorChatId.toString(), TgTextOutput(outputMessage))
-                    } catch (e: ClientRequestException) {
-                        if (e.response.status == HttpStatusCode.Forbidden) {
-                            logger.info("Skipping deletion feedback for user ${suggestion.authorName} (${suggestion.authorChatId}): FORBIDDEN")
-                        } else {
-                            throw e
-                        }
+                        throw e
                     }
                 }
                 val commentPreview = if (rejectComment != null) " \uD83D\uDCAC $rejectComment" else ""
                 sendDeletedConfirmation(message, callback,
                     "❌ Удалён ${callback.userRef()} в ${Instant.now().simpleFormatTime()}$commentPreview ❌".trimToLength(512, "…"))
-                logger.info("Editor ${message.from?.simpleRef} rejected post '${suggestion.postTextTeaser()}' from ${suggestion.authorName} with comment '$rejectComment'")
+                logger.info("Editor ${message.from.simpleRef} rejected post '${suggestion.postTextTeaser()}' from ${suggestion.authorName} with comment '$rejectComment'")
             } else {
                 sendPostNotFound(message, callback)
             }
@@ -226,7 +224,7 @@ object EditorButtonAction {
                     InlineKeyboardMarkup.serializer(),
                     InlineKeyboardButton("\uD83D\uDEAB Забанен ${callback.from.simpleRef} в ${Instant.now().simpleFormatTime()} \uD83D\uDCAC $banComment ❌".trimToLength(512, "…"), DELETED_DATA).toMarkup())
                 TelegramClient.editChatMessageKeyboard(suggestion.editorChatId.toString(), suggestion.editorMessageId, keyboardJson)
-                logger.info("Editor ${message.from?.simpleRef} banned a user ${suggestion.authorName} because of post '${suggestion.postTextTeaser()}', comment '$banComment'")
+                logger.info("Editor ${message.from.simpleRef} banned a user ${suggestion.authorName} because of post '${suggestion.postTextTeaser()}', comment '$banComment'")
             }
         } else {
             sendPostNotFound(message, callback)
@@ -254,7 +252,7 @@ object EditorButtonAction {
         val buttonLabel = "⌛️ Отложен ${callback.userRef()} на ≈$scheduleLabel ⌛️"
         sendDeletedConfirmation(message, callback, buttonLabel,
             listOf(InlineKeyboardButton("$emoji Прямо сейчас", confirm), InlineKeyboardButton("↩️ Отмена действия", CANCEL_DATA)))
-        logger.info("Editor ${message.from?.simpleRef} scheduled post '${suggestion.postTextTeaser()}' from ${suggestion.authorName} to $scheduleLabel")
+        logger.info("Editor ${message.from.simpleRef} scheduled post '${suggestion.postTextTeaser()}' from ${suggestion.authorName} to $scheduleLabel")
     }
 
 
@@ -316,7 +314,7 @@ object EditorButtonAction {
         }
 
         TelegramClient.pingCallbackQuery(callback.id, "✏️✅ Пост изменен ✏️✅")
-        logger.info("Editor ${message.from?.simpleRef} updated post '${suggestion.postTextTeaser()}' from ${suggestion.authorName}")
+        logger.info("Editor ${message.from.simpleRef} updated post '${suggestion.postTextTeaser()}' from ${suggestion.authorName}")
     }
 
     private fun String.validSchedulePayload(prefix: String) = this.startsWith(prefix)
@@ -340,28 +338,17 @@ object EditorButtonAction {
     ) = doNotThrow("Failed to post suggestion") {
         if (suggestion?.editorChatId != null && suggestion.editorMessageId != null) {
             val channel = Setting.TARGET_CHANNEL.str()
-            val footerMd = Setting.FOOTER_MD.str()
             val post = TgPreparedPost(
-                suggestion.postText, suggestion.imageId, footerMarkdown = footerMd,
+                suggestion.postText, suggestion.imageId,
                 suggestionReference = suggestion.authorReference(anonymous)
             )
-            sendTelegramPost(channel, post)
+            post.sendToTelegram(channel)
             SuggestionStore.removeByChatAndMessageId(suggestion.editorChatId, suggestion.editorMessageId, byAuthor = false)
             val emoji = if (anonymous) "✅" else "☑️"
             sendDeletedConfirmation(message, callback, "$emoji Опубликован ${callback.userRef()} в ${Instant.now().simpleFormatTime()} $emoji")
-            if (Setting.SEND_PROMOTION_FEEDBACK.bool()) {
-                try {
-                    TelegramClient.sendChatMessage(suggestion.authorChatId.toString(),
-                        TgTextOutput(UserMessages.postPromotedMessage.format(suggestion.postTextTeaser()).escapeMarkdown()))
-                } catch (e: ClientRequestException) {
-                    if (e.response.status == HttpStatusCode.Forbidden) {
-                        logger.info("Skipping promotion feedback for user ${suggestion.authorName} (${suggestion.authorChatId}): FORBIDDEN")
-                    } else {
-                        throw e
-                    }
-                }
-            }
-            logger.info("Editor ${message.from?.simpleRef} promoted post '${suggestion.postTextTeaser()}' from ${suggestion.authorName}")
+            TelegramClient.sendChatMessage(suggestion.authorChatId.toString(),
+                TgTextOutput(UserMessages.postPromotedMessage.format(suggestion.postTextTeaser()).escapeMarkdown()))
+            logger.info("Editor ${message.from.simpleRef} promoted post '${suggestion.postTextTeaser()}' from ${suggestion.authorName}")
         } else {
             sendPostNotFound(message, callback)
         }
@@ -381,7 +368,7 @@ object EditorButtonAction {
             "❔ Пост не найден ❔"
         }
         sendDeletedConfirmation(message, callback, buttonLabel)
-        logger.info("Editor ${message.from?.simpleRef} tried to do something with deleted post")
+        logger.info("Editor ${message.from.simpleRef} tried to do something with deleted post")
     }
 
     private fun CallbackQuery.userRef() =  from.simpleRef

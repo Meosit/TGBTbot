@@ -1,7 +1,7 @@
 package com.tgbt
 
 import com.tgbt.bot.MessageContext
-import com.tgbt.bot.editor.EditorButtonAction
+import com.tgbt.bot.editor.button.MainMenuHandler
 import com.tgbt.bot.owner.VkScheduleCommand
 import com.tgbt.bot.owner.VkScheduleSlot
 import com.tgbt.bot.user.UserMessages
@@ -12,7 +12,6 @@ import com.tgbt.settings.Setting.*
 import com.tgbt.suggestion.*
 import com.tgbt.telegram.*
 import com.tgbt.telegram.api.*
-import com.tgbt.telegram.output.TgImageOutput
 import com.tgbt.telegram.output.TgTextOutput
 import com.tgbt.vk.VkPost
 import com.tgbt.vk.VkPostLoader
@@ -82,24 +81,16 @@ fun Application.main() {
         post("/handle/$BotToken") {
             try {
                 val update = call.receive<Update>()
-                val msg = update.message ?: update.editedMessage
+                val message = update.message ?: update.editedMessage
                 when {
-                    msg != null -> {
-                        val msgContext = MessageContext(msg, isEdit = update.editedMessage != null)
+                    message != null -> {
+                        val msgContext = MessageContext(message, isEdit = update.editedMessage != null)
                         msgContext.handleUpdate()
                     }
-
-                    update.callbackQuery != null -> {
-                        logger.info(
-                            "Callback (${update.callbackQuery.from.simpleRef})${update.callbackQuery.data} to ${
-                                update.callbackQuery.message?.anyText?.trimToLength(
-                                    50
-                                )
-                            }"
-                        )
-                        EditorButtonAction.handleActionCallback(update.callbackQuery)
+                    update.callbackQuery?.message != null -> {
+                        val notificationText = MainMenuHandler.handle(update.callbackQuery.message, update.callbackQuery.from.simpleRef, update.callbackQuery.data)
+                        TelegramClient.pingCallbackQuery(update.callbackQuery.id, notificationText)
                     }
-
                     else -> logger.info("Nothing useful, do nothing with this update")
                 }
             } catch (e: Exception) {
@@ -200,7 +191,6 @@ suspend fun forwardVkPosts(forcedByOwner: Boolean = false) {
         val postsCount = POST_COUNT_TO_LOAD.int()
         val condition = BotJson.decodeFromString(Expr.serializer(), CONDITION_EXPR.str())
         val communityId = VK_COMMUNITY_ID.long()
-        val footerMd = FOOTER_MD.str()
         val sendStatus = SEND_STATUS.bool()
         val targetChannel = TARGET_CHANNEL.str()
         val editorsChatId = EDITOR_CHAT_ID.str()
@@ -241,7 +231,7 @@ suspend fun forwardVkPosts(forcedByOwner: Boolean = false) {
         val forwarded = mutableListOf<String>()
         postsToForward?.forEach {
             doNotThrow("Post https://vk.com/wall${communityId}\\_${it.id} passes the criteria but failed to send\nTo have it in telegram, post manually.\nAlso") {
-                val prepared = TgPreparedPost(it.text, it.imageUrl, footerMd)
+                val prepared = TgPreparedPost(it.text, it.imageUrl)
                 if (PostStore.insert(it)) {
                     logger.info(
                         "Inserted new post https://vk.com/wall${communityId}_${it.id} '${
@@ -251,7 +241,7 @@ suspend fun forwardVkPosts(forcedByOwner: Boolean = false) {
                             )
                         }'"
                     )
-                    sendTelegramPost(targetChannel, prepared)
+                    prepared.sendToTelegram(targetChannel)
                     val link = "https://vk.com/wall${communityId}_${it.id}"
                     val vk = it.stats
                     forwarded.add("[Post | ${vk.likes}\uD83E\uDD0D ${vk.reposts}\uD83D\uDCE2 ${vk.comments}\uD83D\uDCAC ${vk.views}\uD83D\uDC41]($link)")
@@ -433,7 +423,6 @@ private fun generateSlotMissingMessage(slotTime: String, user: String, lastPostT
 suspend fun forwardSuggestions(forcedByOwner: Boolean = false) {
     val targetChat = EDITOR_CHAT_ID.str()
     val suggestionsEnabled = SUGGESTIONS_ENABLED.bool()
-    val footerMd = FOOTER_MD.str()
     if (suggestionsEnabled) {
         logger.info("Checking for posts which are ready for suggestion")
         doNotThrow("Failed to change suggestions status PENDING_USER_EDIT -> READY_FOR_SUGGESTION") {
@@ -457,10 +446,10 @@ suspend fun forwardSuggestions(forcedByOwner: Boolean = false) {
         suggestions?.forEach { suggestion ->
             doNotThrow("Failed to send single suggestion to editors group") {
                 val post = TgPreparedPost(
-                    suggestion.postText, suggestion.imageId, footerMarkdown = footerMd,
+                    suggestion.postText, suggestion.imageId,
                     suggestionReference = suggestion.authorReference(false)
                 )
-                val editorMessage = sendTelegramPost(targetChat, post, EditorButtonAction.ACTION_KEYBOARD)
+                val editorMessage = post.sendToTelegram(targetChat, MainMenuHandler.ROOT_KEYBOARD)
                 if (editorMessage != null) {
                     SuggestionStore.update(
                         suggestion.copy(
@@ -474,18 +463,8 @@ suspend fun forwardSuggestions(forcedByOwner: Boolean = false) {
                 forwarded++
             }
         }
-        val forgotten = notifyAboutForgottenSuggestions(forcedByOwner)
-        val scheduled = postScheduledSuggestions(footerMd)
-        if (forcedByOwner || forwarded > 0 || forgotten > 0 || scheduled > 0) {
-            val message = "*SUGGESTIONS*\n" +
-                    "\nRight now forwarded $forwarded suggestions from users." +
-                    "\nEditors forgot to review $forgotten posts." +
-                    "\nPosted $scheduled scheduled posts."
-            logger.info(message)
-            if (SEND_SUGGESTION_STATUS.bool()) {
-                BotOwnerIds.forEach { TelegramClient.sendChatMessage(it, TgTextOutput(message)) }
-            }
-        }
+        notifyAboutForgottenSuggestions(false)
+        postScheduledSuggestions()
     } else {
         logger.info("Suggestions disabled, skipping...")
     }
@@ -506,24 +485,12 @@ suspend fun notifyAboutForgottenSuggestions(force: Boolean = false, createdBefor
         logger.info("Currently there are ${forgottenSuggestions?.size} forgotten posts, notifying...")
         forgottenSuggestions?.forEach { suggestion ->
             doNotThrow("Failed to notify about forgotten post") {
-                val retryAfterRegex = """\{\s*"retry_after"\s*:\s*(\d+)\s*}""".toRegex()
                 val hoursSinceCreated = Duration
                     .between(Instant.now(), suggestion.insertedTime.toInstant()).abs().toHours()
                 if (hoursSinceCreated > createdBeforeHours) {
                     logger.info("Post from ${suggestion.authorName} created $hoursSinceCreated hours ago")
-                    val a: Result<Unit> = runCatching {
-                        sendPendingReviewNotification(suggestion, hoursSinceCreated)
-                    }
-                    a.recover { e: Throwable ->
-                        val wait = (e as? ClientRequestException)?.response?.bodyAsText()
-                            ?.let { error -> retryAfterRegex.find(error)?.let { it.groupValues[1] } }
-                            ?.toLongOrNull()
-                        wait?.let {
-                            delay(wait * 1000L + 200)
-                            sendPendingReviewNotification(suggestion, hoursSinceCreated)
-                        }
-                    }
-                    delay(200)
+                    sendPendingReviewNotification(suggestion, hoursSinceCreated)
+                    delay(3000)
                     forgotten++
                 }
             }
@@ -541,7 +508,7 @@ private suspend fun sendPendingReviewNotification(
     replyMessageId = suggestion.editorMessageId
 )
 
-private suspend fun postScheduledSuggestions(footerMd: String): Int {
+private suspend fun postScheduledSuggestions(): Int {
     val targetChannel = TARGET_CHANNEL.str()
     var scheduled = 0
     val suggestions = doNotThrow("Failed to fetch scheduled suggestions from DB") {
@@ -552,35 +519,24 @@ private suspend fun postScheduledSuggestions(footerMd: String): Int {
         doNotThrow("Failed to post scheduled suggestion to channel") {
             val anonymous = suggestion.status != SuggestionStatus.SCHEDULE_PUBLICLY
             val post = TgPreparedPost(
-                suggestion.postText, suggestion.imageId, footerMarkdown = footerMd,
-                suggestionReference = suggestion
-                    .authorReference(anonymous)
+                suggestion.postText, suggestion.imageId,
+                suggestionReference = suggestion.authorReference(anonymous)
             )
-            sendTelegramPost(targetChannel, post)
+            post.sendToTelegram(targetChannel)
             SuggestionStore.removeByChatAndMessageId(
                 suggestion.authorChatId,
                 suggestion.authorMessageId,
                 byAuthor = true
             )
             scheduled++
-            if (SEND_PROMOTION_FEEDBACK.bool()) {
-                try {
-                    TelegramClient.sendChatMessage(
-                        suggestion.authorChatId.toString(),
-                        TgTextOutput(
-                            UserMessages.postPromotedMessage.format(
-                                suggestion.postTextTeaser().escapeMarkdown()
-                            )
-                        )
+            TelegramClient.sendChatMessage(
+                suggestion.authorChatId.toString(),
+                TgTextOutput(
+                    UserMessages.postPromotedMessage.format(
+                        suggestion.postTextTeaser().escapeMarkdown()
                     )
-                } catch (e: ClientRequestException) {
-                    if (e.response.status == HttpStatusCode.Forbidden) {
-                        logger.info("Skipping promotion feedback for user ${suggestion.authorName} (${suggestion.authorChatId}): FORBIDDEN")
-                    } else {
-                        throw e
-                    }
-                }
-            }
+                )
+            )
             logger.info("Posted scheduled post '${suggestion.postTextTeaser()}' from ${suggestion.authorName}")
         }
     }
@@ -601,53 +557,4 @@ suspend inline fun <T> doNotThrow(message: String, block: () -> T?): T? = try {
     val output = TgTextOutput(markdownText)
     BotOwnerIds.forEach { TelegramClient.sendChatMessage(it, output) }
     null
-}
-
-suspend fun sendTelegramPost(
-    targetChat: String,
-    prepared: TgPreparedPost,
-    keyboardMarkup: InlineKeyboardMarkup? = null
-): Message? {
-    val usePhotoMode = USE_PHOTO_MODE.bool()
-    val keyboardJson = keyboardMarkup?.let { BotJson.encodeToString(InlineKeyboardMarkup.serializer(), keyboardMarkup) }
-    return when {
-        usePhotoMode && prepared.canBeSendAsImageWithCaption -> TelegramClient
-            .sendChatPhoto(
-                targetChat,
-                TgImageOutput(prepared.withoutImage, prepared.imageUrl(), keyboardJson)
-            ).result
-
-        prepared.withImage.length > 4096 -> {
-            val (ok, error, result) = TelegraphPostCreator.createPost(prepared)
-            when {
-                ok && result != null -> {
-                    val output = TgTextOutput(
-                        "Слишком длиннобугурт, поэтому читайте в телеграфе: [${result.title}](${result.url})${prepared.formattedFooter}",
-                        keyboardJson
-                    )
-                    TelegramClient.sendChatMessage(targetChat, output, disableLinkPreview = false).result
-                }
-
-                else -> {
-                    val message = "Failed to create Telegraph post, please check logs, error message:\n`${error}`"
-                    logger.error(message)
-                    val output = TgTextOutput(message)
-                    BotOwnerIds.forEach { id -> TelegramClient.sendChatMessage(id, output) }
-                    null
-                }
-            }
-        }
-
-        else -> {
-            // footer links should not be previewed.
-            val disableLinkPreview = prepared.footerMarkdown.contains("https://")
-                    && !prepared.text.contains("https://")
-                    && !(prepared.maybeImage?.isImageUrl() ?: false)
-            TelegramClient.sendChatMessage(
-                targetChat,
-                TgTextOutput(prepared.withImage, keyboardJson),
-                disableLinkPreview = disableLinkPreview
-            ).result
-        }
-    }
 }

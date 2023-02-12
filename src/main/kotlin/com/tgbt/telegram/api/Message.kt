@@ -20,3 +20,5 @@ data class Message(
 val Message.imageId: String? get() = photo?.firstOrNull()?.fileId
 val Message.anyText: String? get() = text ?: caption
 val Message.verboseUserName: String get() = from?.verboseUserName ?: chat.verboseUserName
+
+val Message.verboseLogReference: String get() = "[${this.chat.title ?: ("${this.chat.firstName} ${this.chat.lastName}")};${this.chat.id}](${this.from.simpleRef})"

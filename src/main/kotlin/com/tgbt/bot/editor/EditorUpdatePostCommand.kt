@@ -30,12 +30,6 @@ class EditorUpdatePostCommand(private val suggestion: UserSuggestion): PostComma
         }
         var updatedSuggestion: UserSuggestion? = null
         when {
-            messageText.startsWith("/nopic") -> {
-                updatedSuggestion = suggestion.copy(imageId = null)
-                SuggestionStore.update(updatedSuggestion, byAuthor = false)
-                TelegramClient.sendChatMessage(chatId, TgTextOutput(noPicMessage), replyMessageId = message.id)
-                logger.info("Editor ${message.from?.simpleRef} removed image for post '${suggestion.postTextTeaser()}' from ${suggestion.authorName}")
-            }
             messageText.startsWith("/reject") -> {
                 when (val value = messageText.removePrefix("/reject").trim()) {
                     "" -> TelegramClient.sendChatMessage(chatId, TgTextOutput("Зачем использовать эту команду без комментария?"), message.id)
@@ -47,9 +41,9 @@ class EditorUpdatePostCommand(private val suggestion: UserSuggestion): PostComma
                                     .format(suggestion.postTextTeaser().escapeMarkdown(), value.escapeMarkdown())))
                                 val keyboardJson = BotJson.encodeToString(
                                     InlineKeyboardMarkup.serializer(),
-                                    InlineKeyboardButton("❌ Удалён ${message.from?.simpleRef ?: "anon"} в ${Instant.now().simpleFormatTime()} \uD83D\uDCAC $value ❌".trimToLength(512, "…"), EditorButtonAction.DELETED_DATA).toMarkup())
+                                    InlineKeyboardButton("❌ Удалён ${message.from.simpleRef} в ${Instant.now().simpleFormatTime()} \uD83D\uDCAC $value ❌".trimToLength(512, "…"), EditorButtonAction.DELETED_DATA).toMarkup())
                                 TelegramClient.editChatMessageKeyboard(suggestion.editorChatId.toString(), suggestion.editorMessageId, keyboardJson)
-                                logger.info("Editor ${message.from?.simpleRef} rejected post '${suggestion.postTextTeaser()}' from ${suggestion.authorName} with comment '$value'")
+                                logger.info("Editor ${message.from.simpleRef} rejected post '${suggestion.postTextTeaser()}' from ${suggestion.authorName} with comment '$value'")
                             }
                         }
                     }
@@ -66,7 +60,7 @@ class EditorUpdatePostCommand(private val suggestion: UserSuggestion): PostComma
                                     authorName = suggestion.authorName,
                                     postTeaser = suggestion.postTextTeaser(),
                                     reason = comment,
-                                    bannedBy = message.from?.simpleRef ?: "unknown"
+                                    bannedBy = message.from.simpleRef
                                 )
                                 BanStore.insert(ban)
                                 logger.info("User ${ban.authorName} was banned by ${ban.bannedBy}")
@@ -77,9 +71,9 @@ class EditorUpdatePostCommand(private val suggestion: UserSuggestion): PostComma
                                     .format(suggestion.postTextTeaser().escapeMarkdown(), comment.escapeMarkdown())))
                                 val keyboardJson = BotJson.encodeToString(
                                     InlineKeyboardMarkup.serializer(),
-                                    InlineKeyboardButton("\uD83D\uDEAB Забанен ${message.from?.simpleRef ?: "anon"} в ${Instant.now().simpleFormatTime()} \uD83D\uDCAC $comment ❌".trimToLength(512, "…"), EditorButtonAction.DELETED_DATA).toMarkup())
+                                    InlineKeyboardButton("\uD83D\uDEAB Забанен ${message.from.simpleRef} в ${Instant.now().simpleFormatTime()} \uD83D\uDCAC $comment ❌".trimToLength(512, "…"), EditorButtonAction.DELETED_DATA).toMarkup())
                                 TelegramClient.editChatMessageKeyboard(suggestion.editorChatId.toString(), suggestion.editorMessageId, keyboardJson)
-                                logger.info("Editor ${message.from?.simpleRef} banned a user ${suggestion.authorName} because of post '${suggestion.postTextTeaser()}', comment '$comment'")
+                                logger.info("Editor ${message.from.simpleRef} banned a user ${suggestion.authorName} because of post '${suggestion.postTextTeaser()}', comment '$comment'")
                             }
                         }
                     }
@@ -89,7 +83,7 @@ class EditorUpdatePostCommand(private val suggestion: UserSuggestion): PostComma
                 updatedSuggestion = suggestion.copy(imageId = messageText.trim())
                 SuggestionStore.update(updatedSuggestion, byAuthor = false)
                 TelegramClient.sendChatMessage(chatId, TgTextOutput(addPicMessage), replyMessageId = message.id)
-                logger.info("Editor ${message.from?.simpleRef} updated post image '${suggestion.postTextTeaser()}' from ${suggestion.authorName} with $messageText")
+                logger.info("Editor ${message.from.simpleRef} updated post image '${suggestion.postTextTeaser()}' from ${suggestion.authorName} with $messageText")
             }
         }
         if (updatedSuggestion != null) {

@@ -17,5 +17,4 @@ data class User(
 val User.verboseUserName: String get() =
     username?.let { "@$it" } ?: "[${firstName.escapeMarkdown()}${lastName?.escapeMarkdown()?.let { " $it" } ?: ""}](tg://user?id=$id)"
 
-val User.simpleRef: String get() =
-    username?.let { "@$it" } ?: firstName.escapeMarkdown()
+val User?.simpleRef: String get() = this?.let { username?.let { "@$it" } ?: firstName.escapeMarkdown() } ?: "???"

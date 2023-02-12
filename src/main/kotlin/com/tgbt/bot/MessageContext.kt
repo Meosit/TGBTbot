@@ -17,7 +17,7 @@ import com.tgbt.telegram.TelegramClient
 import com.tgbt.telegram.api.Message
 import com.tgbt.telegram.api.anyText
 import com.tgbt.telegram.api.isPrivate
-import com.tgbt.telegram.api.simpleRef
+import com.tgbt.telegram.api.verboseLogReference
 import com.tgbt.telegram.output.TgTextOutput
 import io.ktor.client.plugins.*
 import io.ktor.client.statement.*
@@ -44,8 +44,7 @@ data class MessageContext(
 
     suspend fun handleUpdate() {
         try {
-            logger.info("Message [${message.chat.title ?: ("${message.chat.firstName} ${message.chat.lastName}")};$chatId]" +
-                    "(${message.from?.simpleRef ?: "???"})" +
+            logger.info("Message ${message.verboseLogReference}" +
                     (if (isEdit) "{EDIT}" else "") +
                     (message.photo?.let { "{PH}" } ?: "") +
                     (if (message.photo == null && message.caption != null) "{FWD}" else  "") +
@@ -135,8 +134,6 @@ data class MessageContext(
             SuggestionPoolingCommand,
             SuggestionsCleanCommand,
             SuggestionsCommand,
-            SuggestionsDeletionCommand,
-            SuggestionsPromotionCommand,
             VkIdCommand,
             VkFreezeMentionsCommand,
             VkFreezeTimeoutCommand,

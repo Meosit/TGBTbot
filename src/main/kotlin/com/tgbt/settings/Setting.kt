@@ -31,8 +31,6 @@ enum class Setting(private val default: String) {
     USER_EDIT_TIME_MINUTES("10"),
     USER_SUGGESTION_DELAY_MINUTES("30"),
     SUGGESTION_POLLING_DELAY_MINUTES("10"),
-    SEND_PROMOTION_FEEDBACK("true"),
-    SEND_DELETION_FEEDBACK("true"),
     SEND_SUGGESTION_STATUS("true"),
     GATEKEEPER("anon");
 

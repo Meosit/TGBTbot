@@ -8,6 +8,7 @@ import com.tgbt.telegram.output.TgMessageOutput
 import io.ktor.client.call.*
 import io.ktor.client.plugins.*
 import io.ktor.client.request.*
+import io.ktor.http.*
 import kotlinx.coroutines.delay
 import org.slf4j.LoggerFactory
 
@@ -24,13 +25,19 @@ object TelegramClient {
                 return BotHttpClient.post(block).body()
             } catch (e: ClientRequestException) {
                 val response = e.response.body<ApiResponse>()
-                if (response.errorCode == 429 && response.parameters?.retryAfter != null) {
-                    val retryAfter = response.parameters.retryAfter
-                    logger.warn("Got '${response.description}'. Retrying request in $retryAfter seconds")
-                    delay(retryAfter * 1000 + 500)
-                    tries++
-                } else {
-                    throw e
+                when {
+                    response.errorCode == HttpStatusCode.TooManyRequests.value && response.parameters?.retryAfter != null -> {
+                        val retryAfter = response.parameters.retryAfter
+                        logger.warn("Got '${response.description}'. Retrying request in $retryAfter seconds")
+                        delay(retryAfter * 1000 + 500)
+                        tries++
+                    }
+                    response.errorCode == HttpStatusCode.Forbidden.value -> {
+                        logger.warn("Got '${response.description}'")
+                    }
+                    else -> {
+                        throw e
+                    }
                 }
             }
         }
