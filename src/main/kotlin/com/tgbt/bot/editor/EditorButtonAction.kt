@@ -1,5 +1,6 @@
 package com.tgbt.bot.editor
 
+import com.tgbt.ban.UserBan
 import com.tgbt.bot.BotContext
 import com.tgbt.bot.user.UserMessages
 import com.tgbt.doNotThrow
@@ -46,9 +47,19 @@ object EditorButtonAction {
         "fck" to "Пошёл нахуй с такими бугуртами",
         "pic" to "Прикрепи картинку и перезалей",
     )
+    private val banComments = mapOf(
+        "ddos" to "Заебал",
+        "ddos2" to "Спамить нельзя",
+        "over" to "Довыебывался",
+        "fck" to "Ну и иди нахуй",
+        "calm" to "Посиди в бане, подумай над тем что скинул",
+        "shame" to "Твоим родителям должно быть стыдно"
+    )
     private const val DELETE_ACTION_DATA = "del"
     private const val DELETE_WITH_COMMENT_DATA = "del_comment_"
     private const val CONFIRM_DELETE_ACTION_DATA = "del_confirm"
+    private const val BAN_ACTION_DATA = "ban"
+    private const val BAN_WITH_COMMENT_DATA = "ban_"
     private const val POST_ANONYMOUSLY_DATA = "anon"
     private const val CONFIRM_POST_ANONYMOUSLY_DATA = "anon_confirm"
     private const val SCHEDULE_POST_ANONYMOUSLY_DATA = "anon_sch_"
@@ -60,7 +71,10 @@ object EditorButtonAction {
     internal const val DELETED_DATA = "deleted"
 
     val ACTION_KEYBOARD = InlineKeyboardMarkup(listOf(
-        listOf(InlineKeyboardButton("❌ Удалить пост", DELETE_ACTION_DATA)),
+        listOf(
+            InlineKeyboardButton("❌ Удалить", DELETE_ACTION_DATA),
+            InlineKeyboardButton("\uD83D\uDEAB Забанить", BAN_ACTION_DATA)
+        ),
         listOf(
             InlineKeyboardButton("✅ Анонимно", POST_ANONYMOUSLY_DATA),
             InlineKeyboardButton("☑️ Не анонимно", POST_PUBLICLY_DATA)
@@ -81,7 +95,8 @@ object EditorButtonAction {
         val suggestion = suggestionStore.findByChatAndMessageId(message.chat.id, message.id, byAuthor = false)
         when(callback.data) {
             DELETE_ACTION_DATA -> sendConfirmDialog(message, callback,
-                InlineKeyboardButton("❌ Точно удалить?", CONFIRM_DELETE_ACTION_DATA), rejectPlaceholders())
+                InlineKeyboardButton("❌ Удалить без комментария", CONFIRM_DELETE_ACTION_DATA), rejectPlaceholders())
+            BAN_ACTION_DATA -> sendConfirmDialog(message, callback, null, banPlaceholders())
             POST_ANONYMOUSLY_DATA -> sendConfirmDialog(message, callback,
                 InlineKeyboardButton("✅ Точно отправить анонимно?", CONFIRM_POST_ANONYMOUSLY_DATA),
                 scheduleButtons(SCHEDULE_POST_ANONYMOUSLY_DATA))
@@ -111,6 +126,8 @@ object EditorButtonAction {
                     scheduleSuggestion(callback.data, suggestion, callback, message, anonymous = false)
                 suggestion != null && callback.data?.validRejectWithCommentPayload() == true ->
                     rejectPost(suggestion, message, callback, rejectComments[callback.data.removePrefix(DELETE_WITH_COMMENT_DATA)])
+                suggestion != null && callback.data?.validBanWithCommentPayload() == true ->
+                    banPost(suggestion, message, callback, banComments.getValue(callback.data.removePrefix(BAN_WITH_COMMENT_DATA)))
                 else -> tgMessageSender.pingCallbackQuery(callback.id, "Нераспознанные данные '${callback.data}'")
             }
         }
@@ -153,6 +170,38 @@ object EditorButtonAction {
         }
     }
 
+    private suspend fun BotContext.banPost(
+        suggestion: UserSuggestion,
+        message: Message,
+        callback: CallbackQuery,
+        banComment: String
+    ) = doNotThrow("Failed to send rejected port") {
+        if (suggestion.editorChatId != null && suggestion.editorMessageId != null) {
+            if (banStore.findByChatId(suggestion.authorChatId) == null) {
+                val ban = UserBan(
+                    authorChatId = suggestion.authorChatId,
+                    authorName = suggestion.authorName,
+                    postTeaser = suggestion.postTextTeaser(),
+                    reason = banComment,
+                    bannedBy = message.from?.simpleRef ?: "unknown"
+                )
+                banStore.insert(ban)
+                logger.info("User ${ban.authorName} was banned by ${ban.bannedBy}")
+            }
+            val actuallyDeleted = suggestionStore.removeByChatAndMessageId(suggestion.editorChatId, suggestion.editorMessageId, byAuthor = false)
+            if (actuallyDeleted) {
+                tgMessageSender.sendChatMessage(suggestion.authorChatId.toString(), TgTextOutput(UserMessages.bannedErrorMessage
+                    .format(suggestion.postTextTeaser().escapeMarkdown(), banComment.escapeMarkdown())))
+                val keyboardJson = json.encodeToString(InlineKeyboardMarkup.serializer(),
+                    InlineKeyboardButton("\uD83D\uDEAB Забанен ${message.from?.simpleRef ?: "anon"} в ${Instant.now().simpleFormatTime()} \uD83D\uDCAC $banComment ❌".trimToLength(512, "…"), DELETED_DATA).toMarkup())
+                tgMessageSender.editChatMessageKeyboard(suggestion.editorChatId.toString(), suggestion.editorMessageId, keyboardJson)
+                logger.info("Editor ${message.from?.simpleRef} banned a user ${suggestion.authorName} because of post '${suggestion.postTextTeaser()}', comment '$banComment'")
+            }
+        } else {
+            sendPostNotFound(message, callback)
+        }
+    }
+
     private suspend fun BotContext.scheduleSuggestion(
         data: String,
         suggestion: UserSuggestion,
@@ -183,6 +232,9 @@ object EditorButtonAction {
 
     private fun String.validRejectWithCommentPayload() = this.startsWith(DELETE_WITH_COMMENT_DATA)
             && this.removePrefix(DELETE_WITH_COMMENT_DATA) in rejectComments
+
+    private fun String.validBanWithCommentPayload() = this.startsWith(BAN_WITH_COMMENT_DATA)
+            && this.removePrefix(BAN_WITH_COMMENT_DATA) in banComments
 
     private suspend fun BotContext.sendSuggestion(
         suggestion: UserSuggestion?,
@@ -241,11 +293,13 @@ object EditorButtonAction {
     private suspend fun BotContext.sendConfirmDialog(
         message: Message,
         callback: CallbackQuery,
-        actionButton: InlineKeyboardButton,
+        actionButton: InlineKeyboardButton?,
         additionalButtons: suspend SequenceScope<List<InlineKeyboardButton>>.() -> Unit
     ) {
-        val inlineKeyboard = sequence<List<InlineKeyboardButton>> {
-            yield(listOf(actionButton))
+        val inlineKeyboard = sequence {
+            if (actionButton != null) {
+                yield(listOf(actionButton))
+            }
             additionalButtons()
             yield(listOf(InlineKeyboardButton("↩️ Отмена действия", CANCEL_DATA)))
         }.toList()
@@ -266,6 +320,11 @@ object EditorButtonAction {
 
     private suspend fun rejectPlaceholders(): suspend SequenceScope<List<InlineKeyboardButton>>.() -> Unit = { rejectComments
             .map { (key, comment) -> InlineKeyboardButton("❌ \uD83D\uDCAC \"$comment\" ❌", "$DELETE_WITH_COMMENT_DATA$key") }
+            .forEach { yield(listOf(it)) }
+    }
+
+    private suspend fun banPlaceholders(): suspend SequenceScope<List<InlineKeyboardButton>>.() -> Unit = { banComments
+            .map { (key, comment) -> InlineKeyboardButton("❌ \uD83D\uDCAC \"$comment\" ❌", "$BAN_WITH_COMMENT_DATA$key") }
             .forEach { yield(listOf(it)) }
     }
 
