@@ -157,6 +157,7 @@ data class MessageContext(
             EditorHelpCommand,
             ForgottenSuggestionsCommand,
             UnbanCommand,
+            ForceVKForwardCommand,
         )
     }
 }
