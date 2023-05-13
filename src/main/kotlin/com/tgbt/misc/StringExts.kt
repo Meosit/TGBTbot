@@ -31,9 +31,10 @@ infix fun String?.lettersDiffer(string: String?): Boolean =
 fun String.isImageUrl(): Boolean {
     try {
         val uri = URI(this)
-        return uri.path.endsWith(".jpg", ignoreCase = true)
+        return uri.host != null && (uri.path.endsWith(".jpg", ignoreCase = true)
                 || uri.path.endsWith(".jpeg", ignoreCase = true)
-                || uri.path.endsWith(".png", ignoreCase = true)
+                || uri.path.endsWith(".png", ignoreCase = true))
+                && (uri.scheme == "https" || uri.scheme == "http")
     } catch (e: URISyntaxException) {
         return false
     }

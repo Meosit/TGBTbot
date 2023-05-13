@@ -100,13 +100,15 @@ fun Application.main() {
             try {
                 val update = call.receive<Update>()
                 val msg = update.message ?: update.editedMessage
-                logger.info("Received $update")
                 when {
                     msg != null -> {
                         val msgContext = MessageContext(botContext, msg, isEdit = update.editedMessage != null)
                         msgContext.handleUpdate()
                     }
-                    update.callbackQuery != null -> EditorButtonAction.handleActionCallback(botContext, update.callbackQuery)
+                    update.callbackQuery != null -> {
+                        logger.info("Callback (${update.callbackQuery.from.simpleRef})${update.callbackQuery.data} to ${update.callbackQuery.message?.anyText?.trimToLength(50)}")
+                        EditorButtonAction.handleActionCallback(botContext, update.callbackQuery)
+                    }
                     else -> logger.info("Nothing useful, do nothing with this update")
                 }
             } catch (e: Exception) {
@@ -150,7 +152,8 @@ fun Application.main() {
                 val delayMinutes = settings.long(SUGGESTION_POLLING_DELAY_MINUTES)
                 logger.info("Next suggestion polling after $delayMinutes minutes")
                 val delayMillis = TimeUnit.MINUTES.toMillis(delayMinutes)
-                selfPing(httpClient, appUrl)
+                // don't need that anymore
+                // selfPing(httpClient, appUrl)
                 delay(delayMillis)
             } catch (e: Exception) {
                 val message = "Unexpected error occurred while suggestions pooling, next try in 60 seconds, error message:\n`${e.message?.escapeMarkdown()}`"
@@ -315,18 +318,19 @@ suspend fun BotContext.forwardVkPosts(forcedByOwner: Boolean = false) {
             val schedule = VkScheduleCommand.parseSchedule(settings)
             val involvedSlots = schedule.filter { slot -> slot.time.inLocalRange(oldestPostTime, latestSlotTime) }
             val latestSchedule = mergePostsWithSchedule(involvedSlots, lastPosts, slotError)
+            val checkPeriod = settings.int(CHECK_PERIOD_MINUTES)
 
             if (latestSchedule.last().second == null && freeze < vkFreezeTimeout) {
                 val slot = latestSchedule.last().first
                 val post = latestSchedule.findLast { it.second != null }?.second
                 if (vkFreezeNotifySchedule && slot != null && post != null) {
+                    logger.info("Found missing slot for ${slot.user} with $freeze min freeze, slot error is $slotError min")
                     val message = generateSlotMissingMessage(slot.time.simpleFormatTime(), slot.user, post.localTime.simpleFormatTime(), freeze)
                     tgMessageSender.sendChatMessage(editorsChatId, TgTextOutput(message), disableLinkPreview = true)
                     if (vkFreezeSendStatus) ownerIds.forEach { tgMessageSender.sendChatMessage(it, TgTextOutput(message), disableLinkPreview = true) }
                 }
             }
 
-            val checkPeriod = settings.int(CHECK_PERIOD_MINUTES)
             if (freeze in vkFreezeTimeout..(vkFreezeTimeout + checkPeriod * 5)) {
                 logger.info("More than $freeze minutes since last VK post, alerting...")
                 val message = latestSchedule.joinToString(
