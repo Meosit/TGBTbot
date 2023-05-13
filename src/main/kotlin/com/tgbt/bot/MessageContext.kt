@@ -16,10 +16,7 @@ import com.tgbt.settings.Setting.EDITOR_CHAT_ID
 import com.tgbt.settings.Setting.SUGGESTIONS_ENABLED
 import com.tgbt.suggestion.SuggestionStore
 import com.tgbt.telegram.TelegramClient
-import com.tgbt.telegram.api.Message
-import com.tgbt.telegram.api.anyText
-import com.tgbt.telegram.api.isPrivate
-import com.tgbt.telegram.api.simpleRef
+import com.tgbt.telegram.api.*
 import com.tgbt.telegram.output.TgTextOutput
 import io.ktor.client.plugins.*
 import io.ktor.client.statement.*
@@ -39,7 +36,7 @@ data class MessageContext(
             this(
                 message.chat.id.toString(),
                 isEdit,
-                message.anyText ?: "",
+                message.textWithFixedCommand(),
                 message,
                 message.replyToMessage
             )

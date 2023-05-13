@@ -65,8 +65,9 @@ abstract class CallbackButtonHandler(category: String, id: String) {
         suspend fun handle(query: CallbackQuery): CallbackNotificationText {
             try {
                 if (query.data == null || query.message == null) {
-                    throw IllegalStateException("Callback Data and it's message is not supposed to be null, query dump: ${query}")
+                    throw IllegalStateException("Callback Data and it's message is not supposed to be null, query dump: $query")
                 }
+                logger.info("Looking up callback from ${AVAILABLE_BUTTONS.size} buttons")
                 val handler = AVAILABLE_BUTTONS.find { it.canHandle(query) }
                     ?: throw IllegalStateException("Cannot find Handler for this query from ${AVAILABLE_BUTTONS.size} available; query dump: $query")
                 return handler.handle(query.message, query.from.simpleRef, query.data)
@@ -74,7 +75,7 @@ abstract class CallbackButtonHandler(category: String, id: String) {
                 val line = (e as? ClientRequestException)?.response?.bodyAsText()
                 val message =
                     "Unexpected error occurred while handling callback query, error message:\n`${e.message?.escapeMarkdown()}`" +
-                            (line?.let { "\n\nResponse content:\n```${line.escapeMarkdown()}```" } ?: "")
+                            (line?.let { "\n\nResponse content:\n```${line.escapeMarkdown()}```" } ?: "") + " query dump: $query; buttons: $AVAILABLE_BUTTONS"
                 logger.error(message, e)
                 if (line != null) {
                     logger.error(line)

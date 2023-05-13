@@ -26,13 +26,13 @@ object RejectMenuHandler: CallbackButtonHandler("EDIT", "REJECT"), BotCommand {
 
     private const val silentRejectPayload = "silent"
     private val rejectComments = mapOf(
+        silentRejectPayload to null,
         "ddos" to "Хватит уже это форсить",
         "notfun" to "Не смешно же",
         "endfail" to "Концовка слита",
         "format" to "Оформи нормально и перезалей",
         "fck" to "Пошёл нахуй с такими бугуртами",
         "pic" to "Прикрепи картинку и перезалей",
-        silentRejectPayload to null
     )
 
     override fun isValidPayload(payload: String): Boolean = payload in rejectComments
@@ -70,9 +70,8 @@ object RejectMenuHandler: CallbackButtonHandler("EDIT", "REJECT"), BotCommand {
 
     override suspend fun renderNewMenu(message: Message, pressedBy: String): CallbackNotificationText {
         val keyboard = sequence {
-            yield(listOf(InlineKeyboardButton("❌ Удалить без комментария ❌", callbackData(silentRejectPayload))))
             rejectComments
-                .map { (key, comment) -> InlineKeyboardButton("❌ \uD83D\uDCAC \"$comment\" ❌", callbackData(key)) }
+                .map { (key, comment) -> InlineKeyboardButton(if (key == silentRejectPayload) "❌ Удалить без комментария ❌" else "❌ \uD83D\uDCAC \"$comment\" ❌", callbackData(key)) }
                 .forEach { yield(listOf(it)) }
             yield(listOf(MainMenuHandler.BACK_TO_MAIN_BUTTON))
         }.toList().let { InlineKeyboardMarkup(it) }
