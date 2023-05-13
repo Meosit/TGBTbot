@@ -12,7 +12,6 @@ enum class Setting(private val default: String) {
     CHECK_PERIOD_MINUTES("10"),
     RETENTION_PERIOD_DAYS("15"),
     POST_COUNT_TO_LOAD("300"),
-    USE_PHOTO_MODE("true"),
     FOOTER_MD(""),
     SEND_STATUS("true"),
     // VK freeze notifications

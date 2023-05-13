@@ -4,7 +4,6 @@ You're the owner of this bot, so you're able to change the following settings:
 
 For post forwarding:
 /forwarding `true|false` - global switch, set to false if you want to disable VK post forwarding
-/photo_mode `true|false` - switch to use photo mode, set to false if you want to send posts with photos and length <=1024 chars using invisible link (displayed at the end of the message)
 /vk\_id `<id number>` - set VK community ID to fetch posts from. Usually it's negative number, google for more info
 /check `<minutes>` - set period in minutes to check for new VK posts or posts that reached the condition, default to 10 minutes
 /retention `<days>` - set period in days to delete posts from database created earlier than specified number of days, default to 15

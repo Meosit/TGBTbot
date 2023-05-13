@@ -44,6 +44,8 @@ object EditorButtonAction {
         "format" to "Оформи нормально и перезалей",
         "fck" to "Пошёл нахуй с такими бугуртами",
         "pic" to "Прикрепи картинку и перезалей",
+        "pol" to "Политику не постим",
+        "song" to "Пересказы песен не постим",
     )
     private val banComments = mapOf(
         "ddos" to "Заебал",

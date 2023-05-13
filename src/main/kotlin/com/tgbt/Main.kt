@@ -585,10 +585,9 @@ suspend fun sendTelegramPost(
     prepared: TgPreparedPost,
     keyboardMarkup: InlineKeyboardMarkup? = null
 ): Message? {
-    val usePhotoMode = USE_PHOTO_MODE.bool()
     val keyboardJson = keyboardMarkup?.let { BotJson.encodeToString(InlineKeyboardMarkup.serializer(), keyboardMarkup) }
     return when {
-        usePhotoMode && prepared.canBeSendAsImageWithCaption -> TelegramClient
+        prepared.canBeSendAsImageWithCaption -> TelegramClient
             .sendChatPhoto(
                 targetChat,
                 TgImageOutput(prepared.withoutImage, prepared.imageUrl(), keyboardJson)

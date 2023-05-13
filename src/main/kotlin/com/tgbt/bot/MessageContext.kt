@@ -124,7 +124,6 @@ data class MessageContext(
             ForcePoolingCommand,
             ForwardingCommand,
             OwnerHelpCommand,
-            PhotoModeCommand,
             PostCountCommand,
             RetentionPeriodCommand,
             SendStatusCommand,
