@@ -22,3 +22,12 @@ fun LocalTime.simpleFormatTime(): String =
 fun zonedNow(): ZonedDateTime = Instant.now().atZone(moscowZoneId)
 
 fun Long.asZonedTime(): ZonedDateTime = Instant.ofEpochSecond(this).atZone(moscowZoneId)
+
+fun LocalTime?.inLocalRange(start: LocalTime, end: LocalTime): Boolean {
+    if (this == null) {
+        return false
+    }
+    val range = if (end >= start)
+        start..end else end..start
+    return if (start >= end) this in range else this !in range
+}

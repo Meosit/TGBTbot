@@ -226,11 +226,6 @@ suspend fun BotContext.forwardVkPosts(forcedByOwner: Boolean = false) {
         val footerMd = settings.str(FOOTER_MD)
         val sendStatus = settings.bool(SEND_STATUS)
         val targetChannel = settings.str(TARGET_CHANNEL)
-        val vkFreezeTimeout = settings.int(VK_FREEZE_TIMEOUT_MINUTES)
-        val vkFreezeMentions = settings.str(VK_FREEZE_MENTIONS)
-        val vkFreezeNotifyTimeout = settings.bool(NOTIFY_FREEZE_TIMEOUT)
-        val vkFreezeNotifySchedule = settings.bool(NOTIFY_FREEZE_SCHEDULE)
-        val vkFreezeSendStatus = settings.bool(SEND_FREEZE_STATUS)
         val editorsChatId = settings.str(EDITOR_CHAT_ID)
 
         val stats = mutableMapOf<String, Int>()
@@ -302,20 +297,33 @@ suspend fun BotContext.forwardVkPosts(forcedByOwner: Boolean = false) {
             if (lastPosts.isEmpty()) {
                 return@doNotThrow
             }
-            val freeze = stats["freeze"] ?: 0
+
+            val vkFreezeIgnoreStart = if (settings.str(VK_FREEZE_IGNORE_START).isNotBlank()) LocalTime.parse(settings.str(VK_FREEZE_IGNORE_START)) else null
+            val vkFreezeIgnoreEnd = if (settings.str(VK_FREEZE_IGNORE_END).isNotBlank()) LocalTime.parse(settings.str(VK_FREEZE_IGNORE_END)) else null
+            val vkFreezeTimeout = settings.int(VK_FREEZE_TIMEOUT_MINUTES)
+            val vkFreezeMentions = settings.str(VK_FREEZE_MENTIONS)
+            val vkFreezeNotifyTimeout = settings.bool(NOTIFY_FREEZE_TIMEOUT)
+            val vkFreezeNotifySchedule = settings.bool(NOTIFY_FREEZE_SCHEDULE)
+            val vkFreezeSendStatus = settings.bool(SEND_FREEZE_STATUS)
             val slotError = settings.long(VK_SCHEDULE_ERROR_MINUTES)
-            val latestSlotTime = zonedNow().minusMinutes(min(freeze.toLong() - 1, slotError)).toLocalTime()
-            val oldestPostTime = lastPosts.last().localTime
-            val schedule = VkScheduleCommand.parseSchedule(settings)
-            val involvedSlots = schedule.filter { slot ->
-                if (latestSlotTime < oldestPostTime) {
-                    // day shift happened in this check
-                    slot.time !in latestSlotTime..oldestPostTime
-                } else {
-                    slot.time in oldestPostTime..latestSlotTime
+
+            if (vkFreezeIgnoreStart != null && vkFreezeIgnoreEnd != null) {
+                if (zonedNow().toLocalTime().inLocalRange(vkFreezeIgnoreStart, vkFreezeIgnoreEnd)) {
+                    logger.info("Ignoring freeze notifications check due to ignore period enabled (${zonedNow().toLocalTime()} in $vkFreezeIgnoreStart..$vkFreezeIgnoreEnd")
+                    return@doNotThrow
                 }
             }
 
+            val oldestPostTime = lastPosts.last().localTime
+            val freeze = when {
+                vkFreezeIgnoreEnd.inLocalRange(oldestPostTime, zonedNow().toLocalTime()) ->
+                    Duration.between(vkFreezeIgnoreEnd, zonedNow().toLocalTime()).toMinutes().toInt()
+                else -> stats["freeze"] ?: 0
+            }
+
+            val latestSlotTime = zonedNow().minusMinutes(min(freeze.toLong() - 1, slotError)).toLocalTime()
+            val schedule = VkScheduleCommand.parseSchedule(settings)
+            val involvedSlots = schedule.filter { slot -> slot.time.inLocalRange(oldestPostTime, latestSlotTime) }
             val latestSchedule = mergePostsWithSchedule(involvedSlots, lastPosts, slotError)
 
             if (latestSchedule.last().second == null && freeze < vkFreezeTimeout) {
@@ -651,6 +659,8 @@ private fun insertDefaultSettings(settings: Settings, json: Json) = with(setting
     putIfAbsent(NOTIFY_FREEZE_TIMEOUT, "true")
     putIfAbsent(NOTIFY_FREEZE_SCHEDULE, "true")
     putIfAbsent(VK_FREEZE_TIMEOUT_MINUTES, "90")
+    putIfAbsent(VK_FREEZE_IGNORE_START, "")
+    putIfAbsent(VK_FREEZE_IGNORE_END, "")
     putIfAbsent(VK_FREEZE_MENTIONS, "anon")
     putIfAbsent(VK_SCHEDULE, "5:00 Улиточка")
     putIfAbsent(VK_SCHEDULE_ERROR_MINUTES, "5")

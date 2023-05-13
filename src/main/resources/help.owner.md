@@ -32,6 +32,7 @@ For VK freeze timeout notifications (when no new posts appear):
 /notify\_freeze\_schedule `<true|false>` - switch for sending freeze notifications by schedule miss  
 /send\_freeze\_status `<true|false>` - send additional notification in owner bot chat for every schedule or timeout miss  
 /vk\_freeze\_timeout `<minutes>` - if no VK posts after this timeout appear in VK, send notification. Note that there is a possible delay of VK check period.
+/vk\_freeze\_ignore `HH:MM-HH:MM` - period when all freeze notifications are prevented
 /vk\_freeze\_mentions `<tg mentions>`- basically a free text to be added to each notification, to mention responsible people. 
 /vk\_schedule `<vk schedule>`- a list of schedule items in format `00:00 <@nickname|text>`, each on a new line
 /vk\_schedule\_error `<minutes>` - period around a schedule slot when no notification sent
