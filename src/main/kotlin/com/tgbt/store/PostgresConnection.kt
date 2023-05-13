@@ -1,5 +1,6 @@
 package com.tgbt.store
 
+import com.tgbt.DatabaseUrl
 import com.vladsch.kotlin.jdbc.HikariCP
 import com.vladsch.kotlin.jdbc.Session
 import com.vladsch.kotlin.jdbc.SessionImpl
@@ -8,7 +9,7 @@ import java.net.URI
 
 object PostgresConnection {
     init {
-        val dbUri = URI(System.getenv("DATABASE_URL"))
+        val dbUri = URI(DatabaseUrl)
         val (username: String, password: String) = dbUri.userInfo.split(":")
         val jdbcUrl = "jdbc:postgresql://${dbUri.host}:${dbUri.port}${dbUri.path}?currentSchema=public"
         HikariCP.default(jdbcUrl, username, password)

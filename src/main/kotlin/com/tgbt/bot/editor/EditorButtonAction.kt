@@ -13,7 +13,8 @@ import com.tgbt.post.TgPreparedPost
 import com.tgbt.sendTelegramPost
 import com.tgbt.settings.Setting
 import com.tgbt.suggestion.*
-import com.tgbt.telegram.*
+import com.tgbt.telegram.TelegramClient
+import com.tgbt.telegram.api.*
 import com.tgbt.telegram.output.TgTextOutput
 import io.ktor.client.plugins.*
 import io.ktor.http.*
@@ -221,7 +222,8 @@ object EditorButtonAction {
             if (actuallyDeleted) {
                 TelegramClient.sendChatMessage(suggestion.authorChatId.toString(), TgTextOutput(UserMessages.bannedErrorMessage
                     .format(suggestion.postTextTeaser().escapeMarkdown(), banComment.escapeMarkdown())))
-                val keyboardJson = BotJson.encodeToString(InlineKeyboardMarkup.serializer(),
+                val keyboardJson = BotJson.encodeToString(
+                    InlineKeyboardMarkup.serializer(),
                     InlineKeyboardButton("\uD83D\uDEAB Забанен ${callback.from.simpleRef} в ${Instant.now().simpleFormatTime()} \uD83D\uDCAC $banComment ❌".trimToLength(512, "…"), DELETED_DATA).toMarkup())
                 TelegramClient.editChatMessageKeyboard(suggestion.editorChatId.toString(), suggestion.editorMessageId, keyboardJson)
                 logger.info("Editor ${message.from?.simpleRef} banned a user ${suggestion.authorName} because of post '${suggestion.postTextTeaser()}', comment '$banComment'")

@@ -2,6 +2,7 @@ package com.tgbt.telegram
 
 import com.tgbt.BotHttpClient
 import com.tgbt.BotJson
+import com.tgbt.TelegraphToken
 import com.tgbt.misc.trimToLength
 import com.tgbt.post.TgPreparedPost
 import io.ktor.client.call.*
@@ -14,8 +15,7 @@ import kotlinx.serialization.builtins.serializer
 
 object TelegraphPostCreator {
 
-    private val apiToken: String = System.getenv("TELEGRAPH_TOKEN")
-    private val apiUrl = "https://api.telegra.ph/createPage"
+    private const val apiUrl = "https://api.telegra.ph/createPage"
 
     suspend fun createPost(post: TgPreparedPost): TelegraphCreateResult {
 
@@ -32,7 +32,7 @@ object TelegraphPostCreator {
                 setBody(TextContent("""
                     {
                         "title": $title,
-                        "access_token": "$apiToken",
+                        "access_token": "$TelegraphToken",
                         "content": $content
                     }
                     """.trimIndent(),
