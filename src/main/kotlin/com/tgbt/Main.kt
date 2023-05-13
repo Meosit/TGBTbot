@@ -1,7 +1,7 @@
 package com.tgbt
 
+import com.tgbt.bot.CallbackButtonHandler
 import com.tgbt.bot.MessageContext
-import com.tgbt.bot.editor.button.MainMenuHandler
 import com.tgbt.bot.owner.ForcePublishSuggestionsCommand
 import com.tgbt.bot.owner.ForceVKForwardCommand
 import com.tgbt.grammar.exprModule
@@ -85,11 +85,7 @@ fun Application.main() {
                                 )
                             }"
                         )
-                        val notificationText = MainMenuHandler.handle(
-                            update.callbackQuery.message,
-                            update.callbackQuery.from.simpleRef,
-                            update.callbackQuery.data
-                        )
+                        val notificationText = CallbackButtonHandler.handle(update.callbackQuery)
                         TelegramClient.pingCallbackQuery(update.callbackQuery.id, notificationText)
                     }
 

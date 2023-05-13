@@ -1,7 +1,7 @@
 package com.tgbt.bot.editor.button
 
 import com.tgbt.BotJson
-import com.tgbt.bot.ButtonMenuHandler
+import com.tgbt.bot.CallbackButtonHandler
 import com.tgbt.bot.CallbackNotificationText
 import com.tgbt.bot.user.UserMessages
 import com.tgbt.misc.doNotThrow
@@ -25,7 +25,7 @@ import java.time.Duration
 import java.time.Instant
 
 sealed class PostMenuHandler(id: String, private val postEmoji: String, private val anonymous: Boolean) :
-    ButtonMenuHandler("EDIT", id) {
+    CallbackButtonHandler("EDIT", id) {
 
     private val logger = LoggerFactory.getLogger(this::class.simpleName)
 
@@ -81,16 +81,16 @@ sealed class PostMenuHandler(id: String, private val postEmoji: String, private 
                         )
                         logger.info("Editor ${message.from.simpleRef} promoted post '${suggestion.postTextTeaser()}' from ${suggestion.authorName}")
                         val buttonLabel = "$postEmoji Опубликован $pressedBy в ${Instant.now().simpleFormatTime()} $postEmoji"
-                        FinishedMenuHandler(buttonLabel).handle(message, pressedBy, null)
+                        FinishedMenuHandler.finish(message, buttonLabel)
                     }
                 }
                 cancelSchedulePayload -> {
                     if (suggestion.scheduleTime != null) {
                         val updated = suggestion.copy(scheduleTime = null, status = SuggestionStatus.PENDING_EDITOR_REVIEW)
                         SuggestionStore.update(updated, byAuthor = false)
-                        MainMenuHandler.handle(message, pressedBy, null)
+                        MainMenuHandler.renderNewMenu(message, pressedBy)
                     } else {
-                        FinishedMenuHandler(postNotFoundMessage(message)).handle(message, pressedBy, null)
+                        FinishedMenuHandler.finish(message, postNotFoundMessage(message))
                     }
                 }
                 else -> {
@@ -107,12 +107,12 @@ sealed class PostMenuHandler(id: String, private val postEmoji: String, private 
                             InlineKeyboardButton("↩️ Отмена действия", callbackData(cancelSchedulePayload))
                         )
                         logger.info("Editor ${message.from.simpleRef} scheduled post '${suggestion.postTextTeaser()}' from ${suggestion.authorName} to $scheduleLabel")
-                        FinishedMenuHandler(buttonLabel, additionalButtons).handle(message, pressedBy, null)
+                        FinishedMenuHandler.finish(message, buttonLabel, additionalButtons)
                     }
                 }
             }
         } else {
-            FinishedMenuHandler(postNotFoundMessage(message)).handle(message, pressedBy, null)
+            FinishedMenuHandler.finish(message, postNotFoundMessage(message))
         }
     }
 
@@ -122,7 +122,7 @@ sealed class PostMenuHandler(id: String, private val postEmoji: String, private 
         return if (firstButtonLabel != null && firstButtonLabel.contains(scheduleEmoji)) {
             firstButtonLabel.replaceFirst(scheduleEmoji, postEmoji)
         } else {
-            "❔ Пост не найден ❔"
+            FinishedMenuHandler.POST_NOT_FOUND
         }
     }
 

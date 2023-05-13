@@ -3,8 +3,10 @@ package com.tgbt.bot.editor.button
 import com.tgbt.BotJson
 import com.tgbt.ban.BanStore
 import com.tgbt.ban.UserBan
-import com.tgbt.bot.ButtonMenuHandler
+import com.tgbt.bot.BotCommand
+import com.tgbt.bot.CallbackButtonHandler
 import com.tgbt.bot.CallbackNotificationText
+import com.tgbt.bot.MessageContext
 import com.tgbt.bot.user.UserMessages
 import com.tgbt.misc.escapeMarkdown
 import com.tgbt.misc.simpleFormatTime
@@ -20,7 +22,7 @@ import com.tgbt.telegram.output.TgTextOutput
 import org.slf4j.LoggerFactory
 import java.time.Instant
 
-object BanMenuHandler : ButtonMenuHandler("EDIT", "BAN") {
+object BanMenuHandler : CallbackButtonHandler("EDIT", "BAN"), BotCommand {
 
     private val logger = LoggerFactory.getLogger(this::class.simpleName)
 
@@ -38,11 +40,13 @@ object BanMenuHandler : ButtonMenuHandler("EDIT", "BAN") {
     override suspend fun handleButtonAction(
         message: Message,
         pressedBy: String,
-        validPayload: String
+        validPayload: String,
     ): CallbackNotificationText {
+        return banCustomComment(message, pressedBy, banComments.getValue(validPayload))
+    }
+
+    private suspend fun banCustomComment(message: Message, pressedBy: String, banComment: String): CallbackNotificationText {
         val suggestion = SuggestionStore.findByChatAndMessageId(message.chat.id, message.id, byAuthor = false)
-        // for manual /ban comments
-        val banComment = if (validPayload in banComments) banComments.getValue(validPayload) else validPayload
         return if (suggestion?.editorChatId != null && suggestion.editorMessageId != null) {
             if (BanStore.findByChatId(suggestion.authorChatId) == null) {
                 val ban = UserBan(
@@ -69,9 +73,9 @@ object BanMenuHandler : ButtonMenuHandler("EDIT", "BAN") {
             logger.info("Editor ${message.from.simpleRef} banned a user ${suggestion.authorName} because of post '${suggestion.postTextTeaser()}', comment '$banComment'")
             val label =
                 "\uD83D\uDEAB Забанен $pressedBy в ${Instant.now().simpleFormatTime()} \uD83D\uDCAC $banComment ❌"
-            FinishedMenuHandler(label.trimToLength(512, "…")).handle(message, pressedBy, null)
+            FinishedMenuHandler.finish(message, label.trimToLength(512, "…"))
         } else {
-            FinishedMenuHandler("❔ Пост не найден ❔").handle(message, pressedBy, null)
+            FinishedMenuHandler.finish(message)
         }
     }
 
@@ -85,5 +89,15 @@ object BanMenuHandler : ButtonMenuHandler("EDIT", "BAN") {
         val keyboardJson = BotJson.encodeToString(InlineKeyboardMarkup.serializer(), keyboard)
         TelegramClient.editChatMessageKeyboard(message.chat.id.toString(), message.id, keyboardJson)
         return null
+    }
+
+
+    override val command: String = "/ban "
+    override suspend fun MessageContext.handle() {
+        if (replyMessage == null) return
+        when (val comment = messageText.removePrefix(command).trim()) {
+            "" -> TelegramClient.sendChatMessage(chatId, TgTextOutput("Нужно указать причину блокировки"), message.id)
+            else -> banCustomComment(replyMessage, message.from.simpleRef, comment)
+        }
     }
 }

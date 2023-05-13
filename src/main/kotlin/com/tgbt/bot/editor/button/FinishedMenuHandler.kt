@@ -1,7 +1,7 @@
 package com.tgbt.bot.editor.button
 
 import com.tgbt.BotJson
-import com.tgbt.bot.ButtonMenuHandler
+import com.tgbt.bot.CallbackButtonHandler
 import com.tgbt.bot.CallbackNotificationText
 import com.tgbt.telegram.TelegramClient
 import com.tgbt.telegram.api.InlineKeyboardButton
@@ -9,11 +9,9 @@ import com.tgbt.telegram.api.InlineKeyboardMarkup
 import com.tgbt.telegram.api.Message
 import com.tgbt.telegram.api.toMarkup
 
-class FinishedMenuHandler(
-    private val label: String,
-    private val optionalActions: List<InlineKeyboardButton>? = null
-): ButtonMenuHandler("EDIT", "FINISH") {
+object FinishedMenuHandler: CallbackButtonHandler("EDIT", "FINISH") {
 
+    const val POST_NOT_FOUND = "❔ Пост не найден ❔"
     private val finishedPayload = callbackData("done")
     private fun createKeyboard(label: String) = InlineKeyboardButton(label, finishedPayload)
 
@@ -23,7 +21,7 @@ class FinishedMenuHandler(
         return null
     }
 
-    override suspend fun renderNewMenu(message: Message, pressedBy: String): CallbackNotificationText {
+    suspend fun finish(message: Message, label: String = POST_NOT_FOUND, optionalActions: List<InlineKeyboardButton>? = null): CallbackNotificationText {
         val finishedButton = createKeyboard(label)
         val inlineKeyboardMarkup = if (optionalActions == null) {
             finishedButton.toMarkup()
@@ -33,6 +31,10 @@ class FinishedMenuHandler(
         val keyboardJson = BotJson.encodeToString(InlineKeyboardMarkup.serializer(), inlineKeyboardMarkup)
         TelegramClient.editChatMessageKeyboard(message.chat.id.toString(), message.id, keyboardJson)
         return label
+    }
+
+    override suspend fun renderNewMenu(message: Message, pressedBy: String): CallbackNotificationText {
+        throw IllegalStateException("Finished action cannot render new menu")
     }
 
 }

@@ -3,9 +3,11 @@ package com.tgbt.bot
 import com.tgbt.BotOwnerIds
 import com.tgbt.ban.BanStore
 import com.tgbt.bot.editor.EditorHelpCommand
-import com.tgbt.bot.editor.EditorUpdatePostCommand
 import com.tgbt.bot.editor.ForgottenSuggestionsCommand
 import com.tgbt.bot.editor.UnbanCommand
+import com.tgbt.bot.editor.button.BanMenuHandler
+import com.tgbt.bot.editor.button.ModifyImageMenuHandler
+import com.tgbt.bot.editor.button.RejectMenuHandler
 import com.tgbt.bot.owner.*
 import com.tgbt.bot.user.*
 import com.tgbt.misc.escapeMarkdown
@@ -148,7 +150,9 @@ data class MessageContext(
             ForgottenSuggestionsCommand,
             UnbanCommand,
             ForceVKForwardCommand,
-            EditorUpdatePostCommand
+            BanMenuHandler,
+            RejectMenuHandler,
+            ModifyImageMenuHandler
         )
     }
 }
