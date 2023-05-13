@@ -17,6 +17,9 @@ abstract class MainMenuHandler(category: String): CallbackButtonHandler(category
     override fun isValidPayload(payload: String): Boolean = payload == backPayload || payload in buttonToHandler
 
     override suspend fun handleButtonAction(message: Message, pressedBy: String, validPayload: String): CallbackNotificationText {
+        if (validPayload == backPayload) {
+            return renderNewMenu(message, pressedBy)
+        }
         val menuHandler = buttonToHandler[validPayload]
             ?: throw IllegalStateException("Cannot find ${this::class.simpleName} for payload $validPayload")
         return menuHandler.renderNewMenu(message, pressedBy)

@@ -4,7 +4,6 @@ import com.tgbt.BotJson
 import com.tgbt.bot.BotCommand
 import com.tgbt.bot.MessageContext
 import com.tgbt.bot.button.CallbackNotificationText
-import com.tgbt.bot.button.MainMenuHandler
 import com.tgbt.misc.isImageUrl
 import com.tgbt.telegram.TelegramClient
 import com.tgbt.telegram.api.InlineKeyboardButton
@@ -14,8 +13,7 @@ import com.tgbt.telegram.api.Message
 abstract class ModifyImageMenuHandler(
     category: String,
     private val searchByAuthor: Boolean,
-    private val mainMenuHandler: MainMenuHandler
-): ModifyMenuHandler(category, "M_IMAGE", mainMenuHandler), BotCommand {
+): ModifyMenuHandler(category, "M_IMAGE"), BotCommand {
 
     private val editComments = mapOf(
         "nopic" to "❌\uD83D\uDDD1 Удалить Картинку \uD83D\uDDD1❌",
@@ -59,7 +57,7 @@ abstract class ModifyImageMenuHandler(
             for (i in onlyImages.indices step 2) {
                 yield((0 until 2).mapNotNull { onlyImages.getOrNull(i + it) })
             }
-            yield(listOf(mainMenuHandler.backButton))
+            yield(listOf(retrieveMainMenuHandler().backButton))
         }.toList().let { InlineKeyboardMarkup(it) }
         val keyboardJson = BotJson.encodeToString(InlineKeyboardMarkup.serializer(), keyboard)
         TelegramClient.editChatMessageKeyboard(message.chat.id.toString(), message.id, keyboardJson)

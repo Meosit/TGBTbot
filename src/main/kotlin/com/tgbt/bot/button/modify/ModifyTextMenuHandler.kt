@@ -2,7 +2,6 @@ package com.tgbt.bot.button.modify
 
 import com.tgbt.BotJson
 import com.tgbt.bot.button.CallbackNotificationText
-import com.tgbt.bot.button.MainMenuHandler
 import com.tgbt.suggestion.UserSuggestion
 import com.tgbt.telegram.TelegramClient
 import com.tgbt.telegram.api.InlineKeyboardButton
@@ -12,8 +11,7 @@ import com.tgbt.telegram.api.Message
 abstract class ModifyTextMenuHandler(
     category: String,
     private val searchByAuthor: Boolean,
-    private val mainMenuHandler: MainMenuHandler
-): ModifyMenuHandler(category, "M_TEXT", mainMenuHandler) {
+): ModifyMenuHandler(category, "M_TEXT") {
 
     private val editComments = mapOf(
         "upper" to "\uD83E\uDE84 Оформить текст \uD83E\uDE84",
@@ -62,7 +60,7 @@ abstract class ModifyTextMenuHandler(
             editComments
                 .map { (key, comment) -> InlineKeyboardButton(comment, callbackData(key)) }
                 .forEach { yield(listOf(it)) }
-            yield(listOf(mainMenuHandler.backButton))
+            yield(listOf(retrieveMainMenuHandler().backButton))
         }.toList().let { InlineKeyboardMarkup(it) }
         val keyboardJson = BotJson.encodeToString(InlineKeyboardMarkup.serializer(), keyboard)
         TelegramClient.editChatMessageKeyboard(message.chat.id.toString(), message.id, keyboardJson)

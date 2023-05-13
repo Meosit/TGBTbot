@@ -14,13 +14,13 @@ import com.tgbt.telegram.TelegramClient
 import com.tgbt.telegram.api.InlineKeyboardMarkup
 import com.tgbt.telegram.api.Message
 
-abstract class ModifyMenuHandler(category: String, id: String, private val mainMenuHandler: MainMenuHandler): CallbackButtonHandler(category, id) {
+abstract class ModifyMenuHandler(category: String, id: String): CallbackButtonHandler(category, id) {
 
     protected suspend fun modifyPost(message: Message, byAuthor: Boolean, action: (UserSuggestion) -> UserSuggestion): CallbackNotificationText {
         val suggestion = SuggestionStore.findByChatAndMessageId(message.chat.id, message.id, byAuthor)
         return if (suggestion?.editorChatId != null && suggestion.editorMessageId != null) {
             val updated = action(suggestion)
-            val keyboardJson = BotJson.encodeToString(InlineKeyboardMarkup.serializer(), mainMenuHandler.rootKeyboard)
+            val keyboardJson = BotJson.encodeToString(InlineKeyboardMarkup.serializer(), retrieveMainMenuHandler().rootKeyboard)
             SuggestionStore.update(updated, byAuthor)
 
             // footer links should not be previewed.
@@ -61,9 +61,11 @@ abstract class ModifyMenuHandler(category: String, id: String, private val mainM
             }
             return "✏️✅ Пост изменен ✏️✅"
         } else {
-            mainMenuHandler.finishInteraction(message)
+            retrieveMainMenuHandler().finishInteraction(message)
         }
     }
+
+    abstract fun retrieveMainMenuHandler(): MainMenuHandler
 
     companion object {
         private const val noImagePlaceholder = "https://cdn.segmentnext.com/wp-content/themes/segmentnext/images/no-image-available.jpg"

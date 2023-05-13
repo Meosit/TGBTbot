@@ -35,6 +35,10 @@ object EditorMainMenuHandler: MainMenuHandler("EDIT") {
     ))
 }
 
-object EditorModifyImageMenuHandler: ModifyImageMenuHandler("EDIT", searchByAuthor = false, EditorMainMenuHandler)
+object EditorModifyImageMenuHandler: ModifyImageMenuHandler("EDIT", searchByAuthor = false) {
+    override fun retrieveMainMenuHandler() = EditorMainMenuHandler
+}
 
-object EditorModifyTextMenuHandler: ModifyTextMenuHandler("EDIT", searchByAuthor = false, EditorMainMenuHandler)
+object EditorModifyTextMenuHandler: ModifyTextMenuHandler("EDIT", searchByAuthor = false) {
+    override fun retrieveMainMenuHandler() = EditorMainMenuHandler
+}
