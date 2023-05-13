@@ -1,7 +1,8 @@
 package com.tgbt.bot.editor
 
+import com.tgbt.BotJson
+import com.tgbt.ban.BanStore
 import com.tgbt.ban.UserBan
-import com.tgbt.bot.BotContext
 import com.tgbt.bot.user.UserMessages
 import com.tgbt.doNotThrow
 import com.tgbt.misc.escapeMarkdown
@@ -11,10 +12,7 @@ import com.tgbt.misc.trimToLength
 import com.tgbt.post.TgPreparedPost
 import com.tgbt.sendTelegramPost
 import com.tgbt.settings.Setting
-import com.tgbt.suggestion.SuggestionStatus
-import com.tgbt.suggestion.UserSuggestion
-import com.tgbt.suggestion.authorReference
-import com.tgbt.suggestion.postTextTeaser
+import com.tgbt.suggestion.*
 import com.tgbt.telegram.*
 import com.tgbt.telegram.output.TgTextOutput
 import io.ktor.client.plugins.*
@@ -109,18 +107,18 @@ object EditorButtonAction {
         )
     ))
 
-    suspend fun handleActionCallback(bot: BotContext, callback: CallbackQuery): Unit = with(bot) {
+    suspend fun handleActionCallback(callback: CallbackQuery) {
         if (callback.data == DELETED_DATA) {
-            tgMessageSender.pingCallbackQuery(callback.id)
+            TelegramClient.pingCallbackQuery(callback.id)
             return
         }
         val message: Message? = callback.message
         if (message == null) {
-            tgMessageSender.pingCallbackQuery(callback.id,
+            TelegramClient.pingCallbackQuery(callback.id,
                 "Сообщение устарело и недоступно боту, надо постить вручную")
             return
         }
-        val suggestion = suggestionStore.findByChatAndMessageId(message.chat.id, message.id, byAuthor = false)
+        val suggestion = SuggestionStore.findByChatAndMessageId(message.chat.id, message.id, byAuthor = false)
         when(callback.data) {
             DELETE_ACTION_DATA -> sendConfirmDialog(message, callback,
                 InlineKeyboardButton("❌ Удалить без комментария", CONFIRM_DELETE_ACTION_DATA), rejectPlaceholders())
@@ -137,13 +135,13 @@ object EditorButtonAction {
             CONFIRM_POST_ANONYMOUSLY_DATA -> sendSuggestion(suggestion, message, callback, anonymous = true)
             CANCEL_DATA -> {
                 if (suggestion != null) {
-                    val keyboardJson = json.encodeToString(InlineKeyboardMarkup.serializer(), ACTION_KEYBOARD)
+                    val keyboardJson = BotJson.encodeToString(InlineKeyboardMarkup.serializer(), ACTION_KEYBOARD)
                     if (suggestion.scheduleTime != null) {
                         val updated = suggestion.copy(scheduleTime = null, status = SuggestionStatus.PENDING_EDITOR_REVIEW)
-                        suggestionStore.update(updated, byAuthor = false)
+                        SuggestionStore.update(updated, byAuthor = false)
                     }
-                    tgMessageSender.editChatMessageKeyboard(message.chat.id.toString(), message.id, keyboardJson)
-                    tgMessageSender.pingCallbackQuery(callback.id, "Действие отменено")
+                    TelegramClient.editChatMessageKeyboard(message.chat.id.toString(), message.id, keyboardJson)
+                    TelegramClient.pingCallbackQuery(callback.id, "Действие отменено")
                 } else {
                     sendPostNotFound(message, callback)
                 }
@@ -159,28 +157,28 @@ object EditorButtonAction {
                     banPost(suggestion, message, callback, banComments.getValue(callback.data.removePrefix(BAN_WITH_COMMENT_DATA)))
                 suggestion != null && callback.data?.validEditPayload() == true ->
                     editSuggestion(suggestion, message, callback, editActions.getValue(callback.data.removePrefix(EDIT_DATA)))
-                else -> tgMessageSender.pingCallbackQuery(callback.id, "Нераспознанные данные '${callback.data}'")
+                else -> TelegramClient.pingCallbackQuery(callback.id, "Нераспознанные данные '${callback.data}'")
             }
         }
     }
 
-    private suspend fun BotContext.rejectPost(
+    private suspend fun rejectPost(
         suggestion: UserSuggestion?,
         message: Message,
         callback: CallbackQuery,
         rejectComment: String? = null
     ) = doNotThrow("Failed to send rejected port") {
         if (suggestion?.editorChatId != null && suggestion.editorMessageId != null) {
-            val actuallyDeleted = suggestionStore.removeByChatAndMessageId(suggestion.editorChatId, suggestion.editorMessageId, byAuthor = false)
+            val actuallyDeleted = SuggestionStore.removeByChatAndMessageId(suggestion.editorChatId, suggestion.editorMessageId, byAuthor = false)
             if (actuallyDeleted) {
-                if (settings.bool(Setting.SEND_DELETION_FEEDBACK)) {
+                if (Setting.SEND_DELETION_FEEDBACK.bool()) {
                     val outputMessage = if (rejectComment != null) {
                         UserMessages.postDiscardedWithCommentMessage.format(suggestion.postTextTeaser().escapeMarkdown(), rejectComment.escapeMarkdown())
                     } else {
                         UserMessages.postDiscardedMessage.format(suggestion.postTextTeaser().escapeMarkdown())
                     }
                     try {
-                        tgMessageSender.sendChatMessage(suggestion.authorChatId.toString(), TgTextOutput(outputMessage))
+                        TelegramClient.sendChatMessage(suggestion.authorChatId.toString(), TgTextOutput(outputMessage))
                     } catch (e: ClientRequestException) {
                         if (e.response.status == HttpStatusCode.Forbidden) {
                             logger.info("Skipping deletion feedback for user ${suggestion.authorName} (${suggestion.authorChatId}): FORBIDDEN")
@@ -201,14 +199,14 @@ object EditorButtonAction {
         }
     }
 
-    private suspend fun BotContext.banPost(
+    private suspend fun banPost(
         suggestion: UserSuggestion,
         message: Message,
         callback: CallbackQuery,
         banComment: String
     ) = doNotThrow("Failed to send rejected port") {
         if (suggestion.editorChatId != null && suggestion.editorMessageId != null) {
-            if (banStore.findByChatId(suggestion.authorChatId) == null) {
+            if (BanStore.findByChatId(suggestion.authorChatId) == null) {
                 val ban = UserBan(
                     authorChatId = suggestion.authorChatId,
                     authorName = suggestion.authorName,
@@ -216,16 +214,16 @@ object EditorButtonAction {
                     reason = banComment,
                     bannedBy = callback.from.simpleRef
                 )
-                banStore.insert(ban)
+                BanStore.insert(ban)
                 logger.info("User ${ban.authorName} was banned by ${ban.bannedBy}")
             }
-            val actuallyDeleted = suggestionStore.removeByChatAndMessageId(suggestion.editorChatId, suggestion.editorMessageId, byAuthor = false)
+            val actuallyDeleted = SuggestionStore.removeByChatAndMessageId(suggestion.editorChatId, suggestion.editorMessageId, byAuthor = false)
             if (actuallyDeleted) {
-                tgMessageSender.sendChatMessage(suggestion.authorChatId.toString(), TgTextOutput(UserMessages.bannedErrorMessage
+                TelegramClient.sendChatMessage(suggestion.authorChatId.toString(), TgTextOutput(UserMessages.bannedErrorMessage
                     .format(suggestion.postTextTeaser().escapeMarkdown(), banComment.escapeMarkdown())))
-                val keyboardJson = json.encodeToString(InlineKeyboardMarkup.serializer(),
+                val keyboardJson = BotJson.encodeToString(InlineKeyboardMarkup.serializer(),
                     InlineKeyboardButton("\uD83D\uDEAB Забанен ${callback.from.simpleRef} в ${Instant.now().simpleFormatTime()} \uD83D\uDCAC $banComment ❌".trimToLength(512, "…"), DELETED_DATA).toMarkup())
-                tgMessageSender.editChatMessageKeyboard(suggestion.editorChatId.toString(), suggestion.editorMessageId, keyboardJson)
+                TelegramClient.editChatMessageKeyboard(suggestion.editorChatId.toString(), suggestion.editorMessageId, keyboardJson)
                 logger.info("Editor ${message.from?.simpleRef} banned a user ${suggestion.authorName} because of post '${suggestion.postTextTeaser()}', comment '$banComment'")
             }
         } else {
@@ -233,7 +231,7 @@ object EditorButtonAction {
         }
     }
 
-    private suspend fun BotContext.scheduleSuggestion(
+    private suspend fun scheduleSuggestion(
         data: String,
         suggestion: UserSuggestion,
         callback: CallbackQuery,
@@ -249,7 +247,7 @@ object EditorButtonAction {
             .ofMinutes(data.removePrefix(prefix).toLong())
         val scheduleInstant = Instant.now().plus(duration)
         val updated = suggestion.copy(scheduleTime = Timestamp.from(scheduleInstant), status = status)
-        suggestionStore.update(updated, byAuthor = false)
+        SuggestionStore.update(updated, byAuthor = false)
         val scheduleLabel = scheduleInstant.simpleFormatTime()
         val buttonLabel = "⌛️ Отложен ${callback.userRef()} на ≈$scheduleLabel ⌛️"
         sendDeletedConfirmation(message, callback, buttonLabel,
@@ -281,32 +279,32 @@ object EditorButtonAction {
         return this
     }
 
-    private suspend fun BotContext.editSuggestion(
+    private suspend fun editSuggestion(
         suggestion: UserSuggestion,
         message: Message,
         callback: CallbackQuery,
         editAction: (UserSuggestion) -> UserSuggestion
     ) = doNotThrow("Failed to edit suggestion") {
         val updated = editAction(suggestion)
-        val keyboardJson = json.encodeToString(InlineKeyboardMarkup.serializer(), ACTION_KEYBOARD)
-        suggestionStore.update(updated, byAuthor = false)
+        val keyboardJson = BotJson.encodeToString(InlineKeyboardMarkup.serializer(), ACTION_KEYBOARD)
+        SuggestionStore.update(updated, byAuthor = false)
 
         // footer links should not be previewed.
         val post = TgPreparedPost(updated.postText, updated.imageId,
-            settings.str(Setting.FOOTER_MD), suggestion.authorReference(false))
+            Setting.FOOTER_MD.str(), suggestion.authorReference(false))
 
         if (message.photo != null) {
             if (updated.imageId != suggestion.imageId) {
                 val imageUrl = post.maybeImage ?: message.photo.first().fileId
-                tgMessageSender.editChatMessagePhoto(message.chat.id.toString(), message.id, imageUrl)
+                TelegramClient.editChatMessagePhoto(message.chat.id.toString(), message.id, imageUrl)
             }
             val caption = post.withoutImage.trimToLength(1024, "...\n_(пост стал длиннее чем 1024 символа)_")
-            tgMessageSender.editChatMessageCaption(message.chat.id.toString(), message.id, caption, keyboardJson)
+            TelegramClient.editChatMessageCaption(message.chat.id.toString(), message.id, caption, keyboardJson)
         } else {
             val disableLinkPreview = post.footerMarkdown.contains("https://")
                     && !post.text.contains("https://")
                     && !(post.maybeImage?.isImageUrl() ?: false)
-            tgMessageSender.editChatMessageText(
+            TelegramClient.editChatMessageText(
                 message.chat.id.toString(),
                 message.id,
                 post.withImage,
@@ -315,7 +313,7 @@ object EditorButtonAction {
             )
         }
 
-        tgMessageSender.pingCallbackQuery(callback.id, "✏️✅ Пост изменен ✏️✅")
+        TelegramClient.pingCallbackQuery(callback.id, "✏️✅ Пост изменен ✏️✅")
         logger.info("Editor ${message.from?.simpleRef} updated post '${suggestion.postTextTeaser()}' from ${suggestion.authorName}")
     }
 
@@ -332,26 +330,26 @@ object EditorButtonAction {
     private fun String.validEditPayload() = this.startsWith(EDIT_DATA)
             && this.removePrefix(EDIT_DATA) in editActions
 
-    private suspend fun BotContext.sendSuggestion(
+    private suspend fun sendSuggestion(
         suggestion: UserSuggestion?,
         message: Message,
         callback: CallbackQuery,
         anonymous: Boolean
     ) = doNotThrow("Failed to post suggestion") {
         if (suggestion?.editorChatId != null && suggestion.editorMessageId != null) {
-            val channel = settings.str(Setting.TARGET_CHANNEL)
-            val footerMd = settings.str(Setting.FOOTER_MD)
+            val channel = Setting.TARGET_CHANNEL.str()
+            val footerMd = Setting.FOOTER_MD.str()
             val post = TgPreparedPost(
                 suggestion.postText, suggestion.imageId, footerMarkdown = footerMd,
                 suggestionReference = suggestion.authorReference(anonymous)
             )
             sendTelegramPost(channel, post)
-            suggestionStore.removeByChatAndMessageId(suggestion.editorChatId, suggestion.editorMessageId, byAuthor = false)
+            SuggestionStore.removeByChatAndMessageId(suggestion.editorChatId, suggestion.editorMessageId, byAuthor = false)
             val emoji = if (anonymous) "✅" else "☑️"
             sendDeletedConfirmation(message, callback, "$emoji Опубликован ${callback.userRef()} в ${Instant.now().simpleFormatTime()} $emoji")
-            if (settings.bool(Setting.SEND_PROMOTION_FEEDBACK)) {
+            if (Setting.SEND_PROMOTION_FEEDBACK.bool()) {
                 try {
-                    tgMessageSender.sendChatMessage(suggestion.authorChatId.toString(),
+                    TelegramClient.sendChatMessage(suggestion.authorChatId.toString(),
                         TgTextOutput(UserMessages.postPromotedMessage.format(suggestion.postTextTeaser()).escapeMarkdown()))
                 } catch (e: ClientRequestException) {
                     if (e.response.status == HttpStatusCode.Forbidden) {
@@ -367,7 +365,7 @@ object EditorButtonAction {
         }
     }
 
-    private suspend fun BotContext.sendPostNotFound(
+    private suspend fun sendPostNotFound(
         message: Message,
         callback: CallbackQuery
     ) {
@@ -386,7 +384,7 @@ object EditorButtonAction {
 
     private fun CallbackQuery.userRef() =  from.simpleRef
 
-    private suspend fun BotContext.sendConfirmDialog(
+    private suspend fun sendConfirmDialog(
         message: Message,
         callback: CallbackQuery,
         actionButton: InlineKeyboardButton?,
@@ -400,9 +398,9 @@ object EditorButtonAction {
             yield(listOf(InlineKeyboardButton("↩️ Отмена действия", CANCEL_DATA)))
         }.toList()
         val inlineKeyboardMarkup = InlineKeyboardMarkup(inlineKeyboard)
-        val keyboardJson = json.encodeToString(InlineKeyboardMarkup.serializer(), inlineKeyboardMarkup)
-        tgMessageSender.editChatMessageKeyboard(message.chat.id.toString(), message.id, keyboardJson)
-        tgMessageSender.pingCallbackQuery(callback.id)
+        val keyboardJson = BotJson.encodeToString(InlineKeyboardMarkup.serializer(), inlineKeyboardMarkup)
+        TelegramClient.editChatMessageKeyboard(message.chat.id.toString(), message.id, keyboardJson)
+        TelegramClient.pingCallbackQuery(callback.id)
     }
 
     private suspend fun scheduleButtons(payloadPrefix: String):
@@ -431,7 +429,7 @@ object EditorButtonAction {
         }
     }
 
-    private suspend fun BotContext.sendDeletedConfirmation(
+    private suspend fun sendDeletedConfirmation(
         message: Message,
         callback: CallbackQuery,
         buttonLabel: String,
@@ -442,8 +440,8 @@ object EditorButtonAction {
         } else {
             InlineKeyboardMarkup(listOf(listOf(InlineKeyboardButton(buttonLabel, DELETED_DATA)), optionalActions))
         }
-        val keyboardJson = json.encodeToString(InlineKeyboardMarkup.serializer(), inlineKeyboardMarkup)
-        tgMessageSender.editChatMessageKeyboard(message.chat.id.toString(), message.id, keyboardJson)
-        tgMessageSender.pingCallbackQuery(callback.id, buttonLabel)
+        val keyboardJson = BotJson.encodeToString(InlineKeyboardMarkup.serializer(), inlineKeyboardMarkup)
+        TelegramClient.editChatMessageKeyboard(message.chat.id.toString(), message.id, keyboardJson)
+        TelegramClient.pingCallbackQuery(callback.id, buttonLabel)
     }
 }

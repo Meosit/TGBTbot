@@ -3,19 +3,20 @@ package com.tgbt.bot.owner
 import com.tgbt.bot.BotCommand
 import com.tgbt.bot.MessageContext
 import com.tgbt.settings.Setting
+import com.tgbt.telegram.TelegramClient
 import com.tgbt.telegram.output.TgTextOutput
 
 
 object ChannelCommand: BotCommand {
     override val command = "/channel "
 
-    override suspend fun MessageContext.handle(): Unit = with(bot) {
+    override suspend fun MessageContext.handle() {
         when (val value = messageText.removePrefix(command)) {
-            "" -> tgMessageSender.sendChatMessage(chatId, TgTextOutput("Argument expected"), message.id)
+            "" -> TelegramClient.sendChatMessage(chatId, TgTextOutput("Argument expected"), message.id)
             else -> {
-                settings[Setting.TARGET_CHANNEL] = value
+                Setting.TARGET_CHANNEL.save(value)
                 val md = "Target channel is set to '$value' (please ensure that it's ID or username which starts from '@')"
-                tgMessageSender.sendChatMessage(chatId, TgTextOutput(md), message.id)
+                TelegramClient.sendChatMessage(chatId, TgTextOutput(md), message.id)
             }
         }
     }

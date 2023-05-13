@@ -1,7 +1,8 @@
 package com.tgbt.bot.editor
 
+import com.tgbt.BotJson
+import com.tgbt.ban.BanStore
 import com.tgbt.ban.UserBan
-import com.tgbt.bot.BotContext
 import com.tgbt.bot.MessageContext
 import com.tgbt.bot.user.PostCommand
 import com.tgbt.bot.user.UserMessages
@@ -11,6 +12,7 @@ import com.tgbt.misc.simpleFormatTime
 import com.tgbt.misc.trimToLength
 import com.tgbt.post.TgPreparedPost
 import com.tgbt.settings.Setting
+import com.tgbt.suggestion.SuggestionStore
 import com.tgbt.suggestion.UserSuggestion
 import com.tgbt.suggestion.authorReference
 import com.tgbt.suggestion.postTextTeaser
@@ -21,7 +23,7 @@ import java.time.Instant
 
 class EditorUpdatePostCommand(private val suggestion: UserSuggestion): PostCommand() {
 
-    override suspend fun MessageContext.handle(): Unit = with(bot) {
+    override suspend fun MessageContext.handle() {
         if (replyMessage == null) {
             return
         }
@@ -29,22 +31,22 @@ class EditorUpdatePostCommand(private val suggestion: UserSuggestion): PostComma
         when {
             messageText.startsWith("/nopic") -> {
                 updatedSuggestion = suggestion.copy(imageId = null)
-                suggestionStore.update(updatedSuggestion, byAuthor = false)
-                tgMessageSender.sendChatMessage(chatId, TgTextOutput(noPicMessage), replyMessageId = message.id)
+                SuggestionStore.update(updatedSuggestion, byAuthor = false)
+                TelegramClient.sendChatMessage(chatId, TgTextOutput(noPicMessage), replyMessageId = message.id)
                 logger.info("Editor ${message.from?.simpleRef} removed image for post '${suggestion.postTextTeaser()}' from ${suggestion.authorName}")
             }
             messageText.startsWith("/reject") -> {
                 when (val value = messageText.removePrefix("/reject").trim()) {
-                    "" -> tgMessageSender.sendChatMessage(chatId, TgTextOutput("Зачем использовать эту команду без комментария?"), message.id)
+                    "" -> TelegramClient.sendChatMessage(chatId, TgTextOutput("Зачем использовать эту команду без комментария?"), message.id)
                     else -> {
                         if (suggestion.editorChatId != null && suggestion.editorMessageId != null) {
-                            val actuallyDeleted = suggestionStore.removeByChatAndMessageId(suggestion.editorChatId, suggestion.editorMessageId, byAuthor = false)
+                            val actuallyDeleted = SuggestionStore.removeByChatAndMessageId(suggestion.editorChatId, suggestion.editorMessageId, byAuthor = false)
                             if (actuallyDeleted) {
-                                tgMessageSender.sendChatMessage(suggestion.authorChatId.toString(), TgTextOutput(UserMessages.postDiscardedWithCommentMessage
+                                TelegramClient.sendChatMessage(suggestion.authorChatId.toString(), TgTextOutput(UserMessages.postDiscardedWithCommentMessage
                                     .format(suggestion.postTextTeaser().escapeMarkdown(), value.escapeMarkdown())))
-                                val keyboardJson = json.encodeToString(InlineKeyboardMarkup.serializer(),
+                                val keyboardJson = BotJson.encodeToString(InlineKeyboardMarkup.serializer(),
                                     InlineKeyboardButton("❌ Удалён ${message.from?.simpleRef ?: "anon"} в ${Instant.now().simpleFormatTime()} \uD83D\uDCAC $value ❌".trimToLength(512, "…"), EditorButtonAction.DELETED_DATA).toMarkup())
-                                tgMessageSender.editChatMessageKeyboard(suggestion.editorChatId.toString(), suggestion.editorMessageId, keyboardJson)
+                                TelegramClient.editChatMessageKeyboard(suggestion.editorChatId.toString(), suggestion.editorMessageId, keyboardJson)
                                 logger.info("Editor ${message.from?.simpleRef} rejected post '${suggestion.postTextTeaser()}' from ${suggestion.authorName} with comment '$value'")
                             }
                         }
@@ -53,10 +55,10 @@ class EditorUpdatePostCommand(private val suggestion: UserSuggestion): PostComma
             }
             messageText.startsWith("/ban") -> {
                 when (val comment = messageText.removePrefix("/ban").trim()) {
-                    "" -> tgMessageSender.sendChatMessage(chatId, TgTextOutput("Нужно указать причину блокировки"), message.id)
+                    "" -> TelegramClient.sendChatMessage(chatId, TgTextOutput("Нужно указать причину блокировки"), message.id)
                     else -> {
                         if (suggestion.editorChatId != null && suggestion.editorMessageId != null) {
-                            if (banStore.findByChatId(suggestion.authorChatId) == null) {
+                            if (BanStore.findByChatId(suggestion.authorChatId) == null) {
                                 val ban = UserBan(
                                     authorChatId = suggestion.authorChatId,
                                     authorName = suggestion.authorName,
@@ -64,16 +66,16 @@ class EditorUpdatePostCommand(private val suggestion: UserSuggestion): PostComma
                                     reason = comment,
                                     bannedBy = message.from?.simpleRef ?: "unknown"
                                 )
-                                banStore.insert(ban)
+                                BanStore.insert(ban)
                                 logger.info("User ${ban.authorName} was banned by ${ban.bannedBy}")
                             }
-                            val actuallyDeleted = suggestionStore.removeByChatAndMessageId(suggestion.editorChatId, suggestion.editorMessageId, byAuthor = false)
+                            val actuallyDeleted = SuggestionStore.removeByChatAndMessageId(suggestion.editorChatId, suggestion.editorMessageId, byAuthor = false)
                             if (actuallyDeleted) {
-                                tgMessageSender.sendChatMessage(suggestion.authorChatId.toString(), TgTextOutput(UserMessages.bannedErrorMessage
+                                TelegramClient.sendChatMessage(suggestion.authorChatId.toString(), TgTextOutput(UserMessages.bannedErrorMessage
                                     .format(suggestion.postTextTeaser().escapeMarkdown(), comment.escapeMarkdown())))
-                                val keyboardJson = json.encodeToString(InlineKeyboardMarkup.serializer(),
+                                val keyboardJson = BotJson.encodeToString(InlineKeyboardMarkup.serializer(),
                                     InlineKeyboardButton("\uD83D\uDEAB Забанен ${message.from?.simpleRef ?: "anon"} в ${Instant.now().simpleFormatTime()} \uD83D\uDCAC $comment ❌".trimToLength(512, "…"), EditorButtonAction.DELETED_DATA).toMarkup())
-                                tgMessageSender.editChatMessageKeyboard(suggestion.editorChatId.toString(), suggestion.editorMessageId, keyboardJson)
+                                TelegramClient.editChatMessageKeyboard(suggestion.editorChatId.toString(), suggestion.editorMessageId, keyboardJson)
                                 logger.info("Editor ${message.from?.simpleRef} banned a user ${suggestion.authorName} because of post '${suggestion.postTextTeaser()}', comment '$comment'")
                             }
                         }
@@ -82,39 +84,39 @@ class EditorUpdatePostCommand(private val suggestion: UserSuggestion): PostComma
             }
             messageText.trim().isImageUrl() -> {
                 updatedSuggestion = suggestion.copy(imageId = messageText.trim())
-                suggestionStore.update(updatedSuggestion, byAuthor = false)
-                tgMessageSender.sendChatMessage(chatId, TgTextOutput(addPicMessage), replyMessageId = message.id)
+                SuggestionStore.update(updatedSuggestion, byAuthor = false)
+                TelegramClient.sendChatMessage(chatId, TgTextOutput(addPicMessage), replyMessageId = message.id)
                 logger.info("Editor ${message.from?.simpleRef} updated post image '${suggestion.postTextTeaser()}' from ${suggestion.authorName} with $messageText")
             }
         }
         if (updatedSuggestion != null) {
             val post = TgPreparedPost(updatedSuggestion.postText, updatedSuggestion.imageId,
-                settings.str(Setting.FOOTER_MD), suggestion.authorReference(false))
+                Setting.FOOTER_MD.str(), suggestion.authorReference(false))
             updateTelegramPost(replyMessage, post)
         }
     }
 
-    private suspend fun BotContext.updateTelegramPost(
+    private suspend fun updateTelegramPost(
         message: Message,
         prepared: TgPreparedPost
     ) {
-        val keyboardJson = message.replyMarkup?.let { json.encodeToString(InlineKeyboardMarkup.serializer(), it) }
+        val keyboardJson = message.replyMarkup?.let { BotJson.encodeToString(InlineKeyboardMarkup.serializer(), it) }
         when {
             message.photo != null  -> {
                 when {
-                    prepared.maybeImage == null -> tgMessageSender
+                    prepared.maybeImage == null -> TelegramClient
                         .editChatMessagePhoto(message.chat.id.toString(), message.id, noImagePlaceholder)
-                    prepared.maybeImage != message.imageId -> tgMessageSender
+                    prepared.maybeImage != message.imageId -> TelegramClient
                         .editChatMessagePhoto(message.chat.id.toString(), message.id, prepared.maybeImage)
                 }
-                tgMessageSender.editChatMessageCaption(message.chat.id.toString(), message.id, prepared.withoutImage.trimToLength(1024, "...\n_(пост стал длиннее чем 1024 символа)_"), keyboardJson)
+                TelegramClient.editChatMessageCaption(message.chat.id.toString(), message.id, prepared.withoutImage.trimToLength(1024, "...\n_(пост стал длиннее чем 1024 символа)_"), keyboardJson)
             }
             else -> {
                 // footer links should not be previewed.
                 val disableLinkPreview = prepared.footerMarkdown.contains("https://")
                         && !prepared.text.contains("https://")
                         && !(prepared.maybeImage?.isImageUrl() ?: false)
-                tgMessageSender.editChatMessageText(
+                TelegramClient.editChatMessageText(
                     message.chat.id.toString(),
                     message.id,
                     prepared.withImage,

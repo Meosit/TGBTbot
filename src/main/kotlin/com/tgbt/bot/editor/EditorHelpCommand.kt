@@ -3,6 +3,7 @@ package com.tgbt.bot.editor
 import com.tgbt.bot.BotCommand
 import com.tgbt.bot.MessageContext
 import com.tgbt.misc.loadResourceAsString
+import com.tgbt.telegram.TelegramClient
 import com.tgbt.telegram.output.TgTextOutput
 
 object EditorHelpCommand : BotCommand {
@@ -10,7 +11,7 @@ object EditorHelpCommand : BotCommand {
     private val helpMessage = loadResourceAsString("editor/help.md")
 
     override suspend fun MessageContext.handle() {
-        bot.tgMessageSender.sendChatMessage(chatId, TgTextOutput(helpMessage))
+        TelegramClient.sendChatMessage(chatId, TgTextOutput(helpMessage))
     }
 
 }

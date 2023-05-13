@@ -1,19 +1,19 @@
 package com.tgbt.ban
 
+import com.tgbt.store.PostgresConnection
 import com.vladsch.kotlin.jdbc.Row
 import com.vladsch.kotlin.jdbc.sqlQuery
-import com.vladsch.kotlin.jdbc.usingDefault
 
-class BanStore {
+object BanStore {
 
     init {
-        usingDefault { session ->
-            session.execute(sqlQuery(CREATE_TABLE_SQL))
+        PostgresConnection.inSession {
+            execute(sqlQuery(CREATE_TABLE_SQL))
         }
     }
 
-    fun insert(suggestion: UserBan): Boolean = usingDefault { session ->
-        1 == session.update(
+    fun insert(suggestion: UserBan): Boolean = PostgresConnection.inSession {
+        1 == update(
             sqlQuery(
                 INSERT_SQL,
                 suggestion.authorChatId,
@@ -26,16 +26,16 @@ class BanStore {
         )
     }
 
-    fun remove(chatId: Long): Boolean = usingDefault { session ->
-        1 == session.update(sqlQuery(DELETE_BY_CHAT_ID, chatId))
+    fun remove(chatId: Long): Boolean = PostgresConnection.inSession {
+        1 == update(sqlQuery(DELETE_BY_CHAT_ID, chatId))
     }
 
-    fun findByChatId(chatId: Long): UserBan? = usingDefault { session ->
-        session.first(sqlQuery(SELECT_BY_CHAT_ID, chatId)) { row -> row.toUserBan() }
+    fun findByChatId(chatId: Long): UserBan? = PostgresConnection.inSession {
+        first(sqlQuery(SELECT_BY_CHAT_ID, chatId)) { row -> row.toUserBan() }
     }
 
-    fun findByChatIdOrName(nameOrChatId: String): UserBan? = usingDefault { session ->
-        session.first(sqlQuery(SELECT_BY_CHAT_ID_OR_NAME, nameOrChatId.toLongOrNull() ?: 0L, nameOrChatId)) { row -> row.toUserBan() }
+    fun findByChatIdOrName(nameOrChatId: String): UserBan? = PostgresConnection.inSession {
+        first(sqlQuery(SELECT_BY_CHAT_ID_OR_NAME, nameOrChatId.toLongOrNull() ?: 0L, nameOrChatId)) { row -> row.toUserBan() }
     }
 
     private fun Row.toUserBan() = UserBan(
@@ -47,36 +47,34 @@ class BanStore {
         insertedTime = sqlTimestamp("inserted_time"),
     )
 
-    companion object {
-        private const val CREATE_TABLE_SQL = """
-        CREATE TABLE IF NOT EXISTS ban_list (
-          author_chat_id BIGINT NOT NULL,
-          author_name TEXT NOT NULL,
-          reason TEXT NOT NULL,
-          post_teaser TEXT NOT NULL,
-          banned_by TEXT NOT NULL,
-          inserted_time TIMESTAMP NOT NULL,
-          PRIMARY KEY (author_chat_id)
-        )"""
+    private const val CREATE_TABLE_SQL = """
+    CREATE TABLE IF NOT EXISTS ban_list (
+      author_chat_id BIGINT NOT NULL,
+      author_name TEXT NOT NULL,
+      reason TEXT NOT NULL,
+      post_teaser TEXT NOT NULL,
+      banned_by TEXT NOT NULL,
+      inserted_time TIMESTAMP NOT NULL,
+      PRIMARY KEY (author_chat_id)
+    )"""
 
-        private const val INSERT_SQL = """
-        INSERT INTO ban_list (
-            author_chat_id, 
-            author_name, 
-            reason, 
-            post_teaser, 
-            banned_by, 
-            inserted_time
-        ) VALUES (?,?,?,?,?,?)"""
+    private const val INSERT_SQL = """
+    INSERT INTO ban_list (
+        author_chat_id, 
+        author_name, 
+        reason, 
+        post_teaser, 
+        banned_by, 
+        inserted_time
+    ) VALUES (?,?,?,?,?,?)"""
 
-        private const val SELECT_BY_CHAT_ID =
-            """SELECT * FROM ban_list WHERE author_chat_id = ?"""
+    private const val SELECT_BY_CHAT_ID =
+        """SELECT * FROM ban_list WHERE author_chat_id = ?"""
 
-        private const val SELECT_BY_CHAT_ID_OR_NAME =
-            """SELECT * FROM ban_list WHERE author_chat_id = ? OR author_name = ?"""
+    private const val SELECT_BY_CHAT_ID_OR_NAME =
+        """SELECT * FROM ban_list WHERE author_chat_id = ? OR author_name = ?"""
 
-        private const val DELETE_BY_CHAT_ID =
-            """DELETE FROM ban_list WHERE author_chat_id = ?"""
-    }
+    private const val DELETE_BY_CHAT_ID =
+        """DELETE FROM ban_list WHERE author_chat_id = ?"""
 
 }

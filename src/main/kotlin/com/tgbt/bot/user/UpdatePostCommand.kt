@@ -14,8 +14,10 @@ import com.tgbt.bot.user.UserMessages.updateTimeoutErrorMessage
 import com.tgbt.misc.isImageUrl
 import com.tgbt.settings.Setting
 import com.tgbt.suggestion.SuggestionStatus
+import com.tgbt.suggestion.SuggestionStore
 import com.tgbt.suggestion.UserSuggestion
 import com.tgbt.suggestion.postTextTeaser
+import com.tgbt.telegram.TelegramClient
 import com.tgbt.telegram.imageId
 import com.tgbt.telegram.output.TgTextOutput
 import org.slf4j.LoggerFactory
@@ -25,10 +27,10 @@ import kotlin.math.max
 
 class UpdatePostCommand(private val suggestion: UserSuggestion) : PostCommand() {
 
-    override suspend fun MessageContext.handle(): Unit = with(bot) {
+    override suspend fun MessageContext.handle() {
         val diffMinutes = ChronoUnit.MINUTES.between(suggestion.insertedTime.toInstant(), Instant.now())
-        val editTimeMinutes = settings.long(Setting.USER_EDIT_TIME_MINUTES)
-        val suggestionDelayMinutes = settings.long(Setting.USER_SUGGESTION_DELAY_MINUTES)
+        val editTimeMinutes = Setting.USER_EDIT_TIME_MINUTES.long()
+        val suggestionDelayMinutes = Setting.USER_SUGGESTION_DELAY_MINUTES.long()
         logger.info("Updating post, minutes after insert: $diffMinutes")
         when {
             diffMinutes >= suggestionDelayMinutes && !isEdit -> {
@@ -36,59 +38,60 @@ class UpdatePostCommand(private val suggestion: UserSuggestion) : PostCommand() 
             }
             diffMinutes >= editTimeMinutes -> {
                 val updatedPost = suggestion.copy(status = SuggestionStatus.READY_FOR_SUGGESTION)
-                suggestionStore.update(updatedPost, byAuthor = true)
-                tgMessageSender.sendChatMessage(chatId, TgTextOutput(updateTimeoutErrorMessage
+                SuggestionStore.update(updatedPost, byAuthor = true)
+                TelegramClient.sendChatMessage(
+                    chatId, TgTextOutput(updateTimeoutErrorMessage
                     .format(editTimeMinutes, max(0, suggestionDelayMinutes - diffMinutes))))
                 logger.info("User ${suggestion.authorName} tried to update post after timeout '${updatedPost.postTextTeaser()}'")
             }
             isEdit && messageText.isBlank() ->
-                tgMessageSender.sendChatMessage(chatId, TgTextOutput(emptyErrorMessage))
+                TelegramClient.sendChatMessage(chatId, TgTextOutput(emptyErrorMessage))
             isEdit && messageText.isNotBlank() -> {
                 if (messageText.length in 10..3500) {
                     val updatedPost = suggestion.copy(postText = messageText, imageId = message.imageId)
-                    suggestionStore.update(updatedPost, byAuthor = true)
-                    tgMessageSender.sendChatMessage(chatId, TgTextOutput(postUpdatedMessage))
+                    SuggestionStore.update(updatedPost, byAuthor = true)
+                    TelegramClient.sendChatMessage(chatId, TgTextOutput(postUpdatedMessage))
                     logger.info("User ${suggestion.authorName} updated post text to '${updatedPost.postTextTeaser()}'")
                 } else {
-                    tgMessageSender.sendChatMessage(chatId, TgTextOutput(emptyErrorMessage))
+                    TelegramClient.sendChatMessage(chatId, TgTextOutput(emptyErrorMessage))
                 }
             }
             !isEdit && messageText.startsWith("/delete") -> {
-                suggestionStore.removeByChatAndMessageId(
+                SuggestionStore.removeByChatAndMessageId(
                     suggestion.authorChatId,
                     suggestion.authorMessageId,
                     byAuthor = true
                 )
-                tgMessageSender.sendChatMessage(chatId, TgTextOutput(postDeletedMessage))
+                TelegramClient.sendChatMessage(chatId, TgTextOutput(postDeletedMessage))
                 logger.info("User ${suggestion.authorName} deleted post '${suggestion.postTextTeaser()}'")
             }
             !isEdit && messageText.startsWith("/nopic") -> {
-                suggestionStore.update(suggestion.copy(imageId = null), byAuthor = true)
-                tgMessageSender.sendChatMessage(chatId, TgTextOutput(postPhotoDeletedMessage))
+                SuggestionStore.update(suggestion.copy(imageId = null), byAuthor = true)
+                TelegramClient.sendChatMessage(chatId, TgTextOutput(postPhotoDeletedMessage))
                 logger.info("User ${suggestion.authorName} removed pic for post: '${suggestion.postTextTeaser()}'")
             }
             !isEdit && message.imageId != null -> {
                 if (suggestion.postText.length >= 3500) {
-                    tgMessageSender.sendChatMessage(chatId, TgTextOutput(invalidPhotoNoAttachmentErrorMessage))
+                    TelegramClient.sendChatMessage(chatId, TgTextOutput(invalidPhotoNoAttachmentErrorMessage))
                     logger.info("User ${suggestion.authorName} tried to add photo by attachment while post is too long, post: '${suggestion.postTextTeaser()}'")
                 } else {
                     val updatedPost = suggestion.copy(imageId = message.imageId)
-                    suggestionStore.update(updatedPost, byAuthor = true)
-                    tgMessageSender.sendChatMessage(chatId, TgTextOutput(photoUpdatedAttachmentMessage))
+                    SuggestionStore.update(updatedPost, byAuthor = true)
+                    TelegramClient.sendChatMessage(chatId, TgTextOutput(photoUpdatedAttachmentMessage))
                     logger.info("User ${suggestion.authorName} updated a pic BY ATTACHMENT for post: '${suggestion.postTextTeaser()}'")
                 }
             }
             !isEdit && messageText.trim().isImageUrl() -> {
                 val updatedPost = suggestion.copy(imageId = messageText.trim())
-                suggestionStore.update(updatedPost, byAuthor = true)
-                tgMessageSender.sendChatMessage(chatId, TgTextOutput(photoUpdatedMessage))
+                SuggestionStore.update(updatedPost, byAuthor = true)
+                TelegramClient.sendChatMessage(chatId, TgTextOutput(photoUpdatedMessage))
                 logger.info("User ${suggestion.authorName} updated a pic BY LINK for post: '${suggestion.postTextTeaser()}'")
             }
             !isEdit && (message.imageId == null || !messageText.trim().isImageUrl()) -> {
-                tgMessageSender.sendChatMessage(chatId, TgTextOutput(invalidPhotoErrorMessage))
+                TelegramClient.sendChatMessage(chatId, TgTextOutput(invalidPhotoErrorMessage))
             }
             else -> {
-                tgMessageSender.sendChatMessage(chatId, TgTextOutput(internalErrorMessage))
+                TelegramClient.sendChatMessage(chatId, TgTextOutput(internalErrorMessage))
             }
         }
     }

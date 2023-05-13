@@ -4,13 +4,14 @@ import com.tgbt.bot.BotCommand
 import com.tgbt.bot.MessageContext
 import com.tgbt.bot.user.UserMessages.startMessage
 import com.tgbt.settings.Setting
+import com.tgbt.telegram.TelegramClient
 import com.tgbt.telegram.output.TgTextOutput
 
 object UserStartCommand: BotCommand {
     override val command: String = "/start"
 
     override suspend fun MessageContext.handle() {
-        bot.tgMessageSender
-            .sendChatMessage(chatId, TgTextOutput(startMessage.format(bot.settings.str(Setting.GATEKEEPER))))
+        TelegramClient
+            .sendChatMessage(chatId, TgTextOutput(startMessage.format(Setting.GATEKEEPER.str())))
     }
 }
