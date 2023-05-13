@@ -4,7 +4,7 @@ import com.tgbt.BotOwnerIds
 import com.tgbt.ban.BanStore
 import com.tgbt.bot.editor.EditorHelpCommand
 import com.tgbt.bot.editor.EditorUpdatePostCommand
-import com.tgbt.bot.editor.ForgottenPostsCommand
+import com.tgbt.bot.editor.ForgottenSuggestionsCommand
 import com.tgbt.bot.editor.UnbanCommand
 import com.tgbt.bot.owner.*
 import com.tgbt.bot.user.*
@@ -120,8 +120,8 @@ data class MessageContext(
             ConditionCommand,
             EditorsChatCommand,
             FooterCommand,
-            ForceForwardCommand,
-            ForcePoolingCommand,
+            ForceVKForwardCommand,
+            ForcePublishSuggestionsCommand,
             ForwardingCommand,
             OwnerHelpCommand,
             PostCountCommand,
@@ -155,7 +155,7 @@ data class MessageContext(
 
         private val EDITOR_COMMANDS: List<BotCommand> = listOf(
             EditorHelpCommand,
-            ForgottenPostsCommand,
+            ForgottenSuggestionsCommand,
             UnbanCommand,
         )
     }

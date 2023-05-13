@@ -4,18 +4,17 @@ import com.tgbt.BotJson
 import com.tgbt.ban.BanStore
 import com.tgbt.ban.UserBan
 import com.tgbt.bot.user.UserMessages
-import com.tgbt.doNotThrow
 import com.tgbt.misc.escapeMarkdown
 import com.tgbt.misc.isImageUrl
 import com.tgbt.misc.simpleFormatTime
 import com.tgbt.misc.trimToLength
 import com.tgbt.post.TgPreparedPost
-import com.tgbt.sendTelegramPost
 import com.tgbt.settings.Setting
 import com.tgbt.suggestion.*
 import com.tgbt.telegram.TelegramClient
 import com.tgbt.telegram.api.*
 import com.tgbt.telegram.output.TgTextOutput
+import doNotThrow
 import org.slf4j.LoggerFactory
 import java.sql.Timestamp
 import java.time.Duration
@@ -336,7 +335,7 @@ object EditorButtonAction {
                 suggestion.postText, suggestion.imageId, footerMarkdown = footerMd,
                 suggestionReference = suggestion.authorReference(anonymous)
             )
-            sendTelegramPost(channel, post)
+            post.sendTo(channel)
             SuggestionStore.removeByChatAndMessageId(suggestion.editorChatId, suggestion.editorMessageId, byAuthor = false)
             val emoji = if (anonymous) "✅" else "☑️"
             sendDeletedConfirmation(message, callback, "$emoji Опубликован ${callback.userRef()} в ${Instant.now().simpleFormatTime()} $emoji")

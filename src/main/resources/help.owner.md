@@ -14,11 +14,11 @@ For post forwarding:
 /send\_stats `true|false` - if true, will send a count (if more than 1) of forwarded posts for every owner each time it happens 
 /force\_forward - trigger a post forwarding manually as a result of this command
 
-For user suggestions forwarding:
+For user suggestions:
 /suggestions `<true|false>` - global switch for suggestions
 /gatekeeper `<tg mention>` - username or the person which will be visible for users to solve ban-related requests
 /editors\_chat `<id_number>`- set the editors chat where the suggestions will be posted for approval 
-/force\_pool\_suggestions - trigger a suggestion pooling from DB to editors chat
+/force\_publish\_suggestions - trigger a suggestion pooling from DB to editors chat
 /suggestion\_pooling `<minutes>` - time between new suggestions check
 /suggestion\_delay `<minutes>` - cool down between user suggestions
 /suggestion\_edit `<minutes>` - time for user to edit his/her suggestion

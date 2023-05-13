@@ -4,9 +4,14 @@ import com.tgbt.bot.BotCommand
 import com.tgbt.bot.MessageContext
 import com.tgbt.misc.escapeMarkdown
 import com.tgbt.misc.simpleFormatTime
+import com.tgbt.misc.zonedNow
+import com.tgbt.post.Post
+import com.tgbt.post.localTime
+import com.tgbt.post.zonedTime
 import com.tgbt.settings.Setting
 import com.tgbt.telegram.TelegramClient
 import com.tgbt.telegram.output.TgTextOutput
+import java.time.Duration
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 
@@ -51,4 +56,38 @@ object VkScheduleCommand : BotCommand {
         .toList()
 
     fun parseSchedule() = parseSchedule(Setting.VK_SCHEDULE.str())
+
+    fun mergePostsWithSchedule(
+        involvedSlots: List<VkScheduleSlot>,
+        lastPosts: List<Post>,
+        slotError: Long
+    ): List<Pair<VkScheduleSlot?, Post?>> {
+        val now = zonedNow()
+        val nowDate = zonedNow().toLocalDate()
+        val mergedSlots = involvedSlots
+            .map { slot ->
+                slot to lastPosts.find { post ->
+                    val time = if (now.toLocalTime() >= slot.time) slot.time.atDate(nowDate) else slot.time.atDate(
+                        nowDate.minusDays(1)
+                    )
+                    Duration.between(time, post.zonedTime.toLocalDateTime()).abs().toMinutes() <= slotError
+                }
+            }
+        val mergedPosts = lastPosts
+            .map { post ->
+                involvedSlots.find { slot ->
+                    val time = if (now.toLocalTime() >= slot.time) slot.time.atDate(nowDate) else slot.time.atDate(
+                        nowDate.minusDays(1)
+                    )
+                    Duration.between(time, post.zonedTime.toLocalDateTime()).abs().toMinutes() <= slotError
+                } to post
+            }
+
+        val latestSchedule = (mergedPosts + mergedSlots).distinct().sortedBy {
+            // sorting that all list occurred in past
+            val time = it.second?.localTime ?: it.first?.time ?: LocalTime.MIN
+            if (now.toLocalTime() >= time) time.atDate(nowDate) else time.atDate(nowDate.minusDays(1))
+        }
+        return latestSchedule
+    }
 }
