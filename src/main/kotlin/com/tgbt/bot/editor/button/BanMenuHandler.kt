@@ -4,9 +4,9 @@ import com.tgbt.BotJson
 import com.tgbt.ban.BanStore
 import com.tgbt.ban.UserBan
 import com.tgbt.bot.BotCommand
-import com.tgbt.bot.CallbackButtonHandler
-import com.tgbt.bot.CallbackNotificationText
 import com.tgbt.bot.MessageContext
+import com.tgbt.bot.button.CallbackButtonHandler
+import com.tgbt.bot.button.CallbackNotificationText
 import com.tgbt.bot.user.UserMessages
 import com.tgbt.misc.escapeMarkdown
 import com.tgbt.misc.simpleFormatTime
@@ -73,9 +73,9 @@ object BanMenuHandler : CallbackButtonHandler("EDIT", "BAN"), BotCommand {
             logger.info("Editor ${message.from.simpleRef} banned a user ${suggestion.authorName} because of post '${suggestion.postTextTeaser()}', comment '$banComment'")
             val label =
                 "\uD83D\uDEAB Забанен $pressedBy в ${Instant.now().simpleFormatTime()} \uD83D\uDCAC $banComment ❌"
-            FinishedMenuHandler.finish(message, label.trimToLength(512, "…"))
+            EditorMainMenuHandler.finishInteraction(message, label.trimToLength(512, "…"))
         } else {
-            FinishedMenuHandler.finish(message)
+            EditorMainMenuHandler.finishInteraction(message)
         }
     }
 
@@ -84,7 +84,7 @@ object BanMenuHandler : CallbackButtonHandler("EDIT", "BAN"), BotCommand {
             banComments
                 .map { (key, comment) -> InlineKeyboardButton("❌ \uD83D\uDCAC \"$comment\" ❌", callbackData(key)) }
                 .forEach { yield(listOf(it)) }
-            yield(listOf(MainMenuHandler.BACK_TO_MAIN_BUTTON))
+            yield(listOf(EditorMainMenuHandler.backButton))
         }.toList().let { InlineKeyboardMarkup(it) }
         val keyboardJson = BotJson.encodeToString(InlineKeyboardMarkup.serializer(), keyboard)
         TelegramClient.editChatMessageKeyboard(message.chat.id.toString(), message.id, keyboardJson)

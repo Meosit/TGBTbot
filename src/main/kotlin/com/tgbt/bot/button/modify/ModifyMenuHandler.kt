@@ -1,8 +1,9 @@
-package com.tgbt.bot.editor.button
+package com.tgbt.bot.button.modify
 
 import com.tgbt.BotJson
-import com.tgbt.bot.CallbackButtonHandler
-import com.tgbt.bot.CallbackNotificationText
+import com.tgbt.bot.button.CallbackButtonHandler
+import com.tgbt.bot.button.CallbackNotificationText
+import com.tgbt.bot.button.MainMenuHandler
 import com.tgbt.misc.isImageUrl
 import com.tgbt.misc.trimToLength
 import com.tgbt.post.TgPreparedPost
@@ -13,19 +14,19 @@ import com.tgbt.telegram.TelegramClient
 import com.tgbt.telegram.api.InlineKeyboardMarkup
 import com.tgbt.telegram.api.Message
 
-abstract class ModifyMenuHandler(category: String, id: String): CallbackButtonHandler(category, id) {
+abstract class ModifyMenuHandler(category: String, id: String, private val mainMenuHandler: MainMenuHandler): CallbackButtonHandler(category, id) {
 
-    protected suspend fun modifyPost(message: Message, action: (UserSuggestion) -> UserSuggestion): CallbackNotificationText {
-        val suggestion = SuggestionStore.findByChatAndMessageId(message.chat.id, message.id, byAuthor = false)
+    protected suspend fun modifyPost(message: Message, byAuthor: Boolean, action: (UserSuggestion) -> UserSuggestion): CallbackNotificationText {
+        val suggestion = SuggestionStore.findByChatAndMessageId(message.chat.id, message.id, byAuthor)
         return if (suggestion?.editorChatId != null && suggestion.editorMessageId != null) {
             val updated = action(suggestion)
-            val keyboardJson = BotJson.encodeToString(InlineKeyboardMarkup.serializer(), MainMenuHandler.ROOT_KEYBOARD)
-            SuggestionStore.update(updated, byAuthor = false)
+            val keyboardJson = BotJson.encodeToString(InlineKeyboardMarkup.serializer(), mainMenuHandler.rootKeyboard)
+            SuggestionStore.update(updated, byAuthor)
 
             // footer links should not be previewed.
             val post = TgPreparedPost(
                 updated.postText, updated.imageId,
-                suggestionReference = suggestion.authorReference(false)
+                suggestionReference = suggestion.authorReference(anonymous = !byAuthor)
             )
 
             if (message.photo != null) {
@@ -60,7 +61,7 @@ abstract class ModifyMenuHandler(category: String, id: String): CallbackButtonHa
             }
             return "✏️✅ Пост изменен ✏️✅"
         } else {
-            FinishedMenuHandler.finish(message)
+            mainMenuHandler.finishInteraction(message)
         }
     }
 

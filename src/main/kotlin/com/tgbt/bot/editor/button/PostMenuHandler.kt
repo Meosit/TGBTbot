@@ -1,8 +1,8 @@
 package com.tgbt.bot.editor.button
 
 import com.tgbt.BotJson
-import com.tgbt.bot.CallbackButtonHandler
-import com.tgbt.bot.CallbackNotificationText
+import com.tgbt.bot.button.CallbackButtonHandler
+import com.tgbt.bot.button.CallbackNotificationText
 import com.tgbt.bot.user.UserMessages
 import com.tgbt.misc.doNotThrow
 import com.tgbt.misc.escapeMarkdown
@@ -81,16 +81,16 @@ sealed class PostMenuHandler(id: String, private val postEmoji: String, private 
                         )
                         logger.info("Editor ${message.from.simpleRef} promoted post '${suggestion.postTextTeaser()}' from ${suggestion.authorName}")
                         val buttonLabel = "$postEmoji Опубликован $pressedBy в ${Instant.now().simpleFormatTime()} $postEmoji"
-                        FinishedMenuHandler.finish(message, buttonLabel)
+                        EditorMainMenuHandler.finishInteraction(message, buttonLabel)
                     }
                 }
                 cancelSchedulePayload -> {
                     if (suggestion.scheduleTime != null) {
                         val updated = suggestion.copy(scheduleTime = null, status = SuggestionStatus.PENDING_EDITOR_REVIEW)
                         SuggestionStore.update(updated, byAuthor = false)
-                        MainMenuHandler.renderNewMenu(message, pressedBy)
+                        EditorMainMenuHandler.renderNewMenu(message, pressedBy)
                     } else {
-                        FinishedMenuHandler.finish(message, postNotFoundMessage(message))
+                        finish(message)
                     }
                 }
                 else -> {
@@ -107,22 +107,22 @@ sealed class PostMenuHandler(id: String, private val postEmoji: String, private 
                             InlineKeyboardButton("↩️ Отмена действия", callbackData(cancelSchedulePayload))
                         )
                         logger.info("Editor ${message.from.simpleRef} scheduled post '${suggestion.postTextTeaser()}' from ${suggestion.authorName} to $scheduleLabel")
-                        FinishedMenuHandler.finish(message, buttonLabel, additionalButtons)
+                        EditorMainMenuHandler.finishInteraction(message, buttonLabel, additionalButtons)
                     }
                 }
             }
         } else {
-            FinishedMenuHandler.finish(message, postNotFoundMessage(message))
+            finish(message)
         }
     }
 
-    private fun postNotFoundMessage(message: Message): String {
+    private suspend fun finish(message: Message): CallbackNotificationText {
         val firstButtonLabel = message.replyMarkup?.inlineKeyboard?.getOrNull(0)?.getOrNull(0)?.text
         // handling action on already forwarded via schedule post - removing any action buttons
         return if (firstButtonLabel != null && firstButtonLabel.contains(scheduleEmoji)) {
-            firstButtonLabel.replaceFirst(scheduleEmoji, postEmoji)
+            EditorMainMenuHandler.finishInteraction(message, firstButtonLabel.replaceFirst(scheduleEmoji, postEmoji))
         } else {
-            FinishedMenuHandler.POST_NOT_FOUND
+            EditorMainMenuHandler.finishInteraction(message)
         }
     }
 
@@ -135,7 +135,7 @@ sealed class PostMenuHandler(id: String, private val postEmoji: String, private 
             for (i in buttons.indices step 2) {
                 yield((0 until 2).mapNotNull { buttons.getOrNull(it + i) })
             }
-            yield(listOf(MainMenuHandler.BACK_TO_MAIN_BUTTON))
+            yield(listOf(EditorMainMenuHandler.backButton))
         }.toList().let { InlineKeyboardMarkup(it) }
         val keyboardJson = BotJson.encodeToString(InlineKeyboardMarkup.serializer(), keyboard)
         TelegramClient.editChatMessageKeyboard(message.chat.id.toString(), message.id, keyboardJson)

@@ -1,16 +1,21 @@
-package com.tgbt.bot.editor.button
+package com.tgbt.bot.button.modify
 
 import com.tgbt.BotJson
 import com.tgbt.bot.BotCommand
-import com.tgbt.bot.CallbackNotificationText
 import com.tgbt.bot.MessageContext
+import com.tgbt.bot.button.CallbackNotificationText
+import com.tgbt.bot.button.MainMenuHandler
 import com.tgbt.misc.isImageUrl
 import com.tgbt.telegram.TelegramClient
 import com.tgbt.telegram.api.InlineKeyboardButton
 import com.tgbt.telegram.api.InlineKeyboardMarkup
 import com.tgbt.telegram.api.Message
 
-object ModifyImageMenuHandler: ModifyMenuHandler("EDIT", "M_IMAGE"), BotCommand {
+abstract class ModifyImageMenuHandler(
+    category: String,
+    private val searchByAuthor: Boolean,
+    private val mainMenuHandler: MainMenuHandler
+): ModifyMenuHandler(category, "M_IMAGE", mainMenuHandler), BotCommand {
 
     private val editComments = mapOf(
         "nopic" to "❌\uD83D\uDDD1 Удалить Картинку \uD83D\uDDD1❌",
@@ -42,9 +47,7 @@ object ModifyImageMenuHandler: ModifyMenuHandler("EDIT", "M_IMAGE"), BotCommand 
         message: Message,
         pressedBy: String,
         validPayload: String
-    ): CallbackNotificationText {
-        return modifyPost(message) { it.copy(imageId = imageUrls.getValue(validPayload)) }
-    }
+    ) = modifyPost(message, searchByAuthor) { it.copy(imageId = imageUrls.getValue(validPayload)) }
 
     override suspend fun renderNewMenu(message: Message, pressedBy: String): CallbackNotificationText {
         val keyboard = sequence {
@@ -56,7 +59,7 @@ object ModifyImageMenuHandler: ModifyMenuHandler("EDIT", "M_IMAGE"), BotCommand 
             for (i in onlyImages.indices step 2) {
                 yield((0 until 2).mapNotNull { onlyImages.getOrNull(i + it) })
             }
-            yield(listOf(MainMenuHandler.BACK_TO_MAIN_BUTTON))
+            yield(listOf(mainMenuHandler.backButton))
         }.toList().let { InlineKeyboardMarkup(it) }
         val keyboardJson = BotJson.encodeToString(InlineKeyboardMarkup.serializer(), keyboard)
         TelegramClient.editChatMessageKeyboard(message.chat.id.toString(), message.id, keyboardJson)
@@ -69,7 +72,7 @@ object ModifyImageMenuHandler: ModifyMenuHandler("EDIT", "M_IMAGE"), BotCommand 
     override suspend fun MessageContext.handle() {
         val url = messageText.removePrefix(command)
         if (replyMessage != null && url.isImageUrl()) {
-            modifyPost(replyMessage) { it.copy(imageId = messageText.trim()) }
+            modifyPost(replyMessage, searchByAuthor) { it.copy(imageId = messageText.trim()) }
         }
     }
 }

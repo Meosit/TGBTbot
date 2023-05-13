@@ -1,7 +1,7 @@
 package com.tgbt
 
-import com.tgbt.bot.CallbackButtonHandler
 import com.tgbt.bot.MessageContext
+import com.tgbt.bot.button.CallbackButtonHandler
 import com.tgbt.bot.owner.ForcePublishSuggestionsCommand
 import com.tgbt.bot.owner.ForceVKForwardCommand
 import com.tgbt.grammar.exprModule

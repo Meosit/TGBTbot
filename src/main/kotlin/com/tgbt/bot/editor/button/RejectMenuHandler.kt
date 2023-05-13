@@ -2,9 +2,9 @@ package com.tgbt.bot.editor.button
 
 import com.tgbt.BotJson
 import com.tgbt.bot.BotCommand
-import com.tgbt.bot.CallbackButtonHandler
-import com.tgbt.bot.CallbackNotificationText
 import com.tgbt.bot.MessageContext
+import com.tgbt.bot.button.CallbackButtonHandler
+import com.tgbt.bot.button.CallbackNotificationText
 import com.tgbt.bot.user.UserMessages
 import com.tgbt.misc.escapeMarkdown
 import com.tgbt.misc.simpleFormatTime
@@ -59,12 +59,12 @@ object RejectMenuHandler: CallbackButtonHandler("EDIT", "REJECT"), BotCommand {
                 val commentPreview = if (rejectComment != null) " \uD83D\uDCAC $rejectComment" else ""
                 logger.info("Editor ${message.from.simpleRef} rejected post '${suggestion.postTextTeaser()}' from ${suggestion.authorName} with comment '$rejectComment'")
                 val label = "❌ Удалён $pressedBy в ${Instant.now().simpleFormatTime()}$commentPreview ❌"
-                FinishedMenuHandler.finish(message, label.trimToLength(512, "…"))
+                EditorMainMenuHandler.finishInteraction(message, label.trimToLength(512, "…"))
             } else {
-                FinishedMenuHandler.finish(message)
+                EditorMainMenuHandler.finishInteraction(message)
             }
         } else {
-            FinishedMenuHandler.finish(message)
+            EditorMainMenuHandler.finishInteraction(message)
         }
     }
 
@@ -73,7 +73,7 @@ object RejectMenuHandler: CallbackButtonHandler("EDIT", "REJECT"), BotCommand {
             rejectComments
                 .map { (key, comment) -> InlineKeyboardButton(if (key == silentRejectPayload) "❌ Удалить без комментария ❌" else "❌ \uD83D\uDCAC \"$comment\" ❌", callbackData(key)) }
                 .forEach { yield(listOf(it)) }
-            yield(listOf(MainMenuHandler.BACK_TO_MAIN_BUTTON))
+            yield(listOf(EditorMainMenuHandler.backButton))
         }.toList().let { InlineKeyboardMarkup(it) }
         val keyboardJson = BotJson.encodeToString(InlineKeyboardMarkup.serializer(), keyboard)
         TelegramClient.editChatMessageKeyboard(message.chat.id.toString(), message.id, keyboardJson)

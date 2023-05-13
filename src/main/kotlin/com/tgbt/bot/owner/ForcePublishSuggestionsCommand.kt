@@ -4,7 +4,7 @@ import com.tgbt.BotOwnerIds
 import com.tgbt.bot.BotCommand
 import com.tgbt.bot.MessageContext
 import com.tgbt.bot.editor.ForgottenSuggestionsCommand
-import com.tgbt.bot.editor.button.MainMenuHandler
+import com.tgbt.bot.editor.button.EditorMainMenuHandler
 import com.tgbt.bot.user.UserMessages
 import com.tgbt.misc.doNotThrow
 import com.tgbt.misc.escapeMarkdown
@@ -59,7 +59,7 @@ object ForcePublishSuggestionsCommand : BotCommand {
                         suggestion.postText, suggestion.imageId, footerMarkdown = footerMd,
                         suggestionReference = suggestion.authorReference(false)
                     )
-                    val editorMessage = post.sendTo(targetChat, MainMenuHandler.ROOT_KEYBOARD)
+                    val editorMessage = post.sendTo(targetChat, EditorMainMenuHandler.rootKeyboard)
                     if (editorMessage != null) {
                         SuggestionStore.update(
                             suggestion.copy(

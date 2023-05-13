@@ -1,14 +1,19 @@
-package com.tgbt.bot.editor.button
+package com.tgbt.bot.button.modify
 
 import com.tgbt.BotJson
-import com.tgbt.bot.CallbackNotificationText
+import com.tgbt.bot.button.CallbackNotificationText
+import com.tgbt.bot.button.MainMenuHandler
 import com.tgbt.suggestion.UserSuggestion
 import com.tgbt.telegram.TelegramClient
 import com.tgbt.telegram.api.InlineKeyboardButton
 import com.tgbt.telegram.api.InlineKeyboardMarkup
 import com.tgbt.telegram.api.Message
 
-object ModifyTextMenuHandler: ModifyMenuHandler("EDIT", "M_TEXT") {
+abstract class ModifyTextMenuHandler(
+    category: String,
+    private val searchByAuthor: Boolean,
+    private val mainMenuHandler: MainMenuHandler
+): ModifyMenuHandler(category, "M_TEXT", mainMenuHandler) {
 
     private val editComments = mapOf(
         "upper" to "\uD83E\uDE84 Оформить текст \uD83E\uDE84",
@@ -50,16 +55,14 @@ object ModifyTextMenuHandler: ModifyMenuHandler("EDIT", "M_TEXT") {
         message: Message,
         pressedBy: String,
         validPayload: String
-    ): CallbackNotificationText {
-        return modifyPost(message, editActions.getValue(validPayload))
-    }
+    ) = modifyPost(message, searchByAuthor, editActions.getValue(validPayload))
 
     override suspend fun renderNewMenu(message: Message, pressedBy: String): CallbackNotificationText {
         val keyboard = sequence {
             editComments
                 .map { (key, comment) -> InlineKeyboardButton(comment, callbackData(key)) }
                 .forEach { yield(listOf(it)) }
-            yield(listOf(MainMenuHandler.BACK_TO_MAIN_BUTTON))
+            yield(listOf(mainMenuHandler.backButton))
         }.toList().let { InlineKeyboardMarkup(it) }
         val keyboardJson = BotJson.encodeToString(InlineKeyboardMarkup.serializer(), keyboard)
         TelegramClient.editChatMessageKeyboard(message.chat.id.toString(), message.id, keyboardJson)

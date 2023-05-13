@@ -1,17 +1,14 @@
-package com.tgbt.bot.editor.button
+package com.tgbt.bot.button
 
 import com.tgbt.BotJson
-import com.tgbt.bot.CallbackButtonHandler
-import com.tgbt.bot.CallbackNotificationText
 import com.tgbt.telegram.TelegramClient
 import com.tgbt.telegram.api.InlineKeyboardButton
 import com.tgbt.telegram.api.InlineKeyboardMarkup
 import com.tgbt.telegram.api.Message
 import com.tgbt.telegram.api.toMarkup
 
-object FinishedMenuHandler: CallbackButtonHandler("EDIT", "FINISH") {
+class FinishedMenuHandler(category: String): CallbackButtonHandler(category, "FINISH") {
 
-    const val POST_NOT_FOUND = "❔ Пост не найден ❔"
     private val finishedPayload = callbackData("done")
     private fun createKeyboard(label: String) = InlineKeyboardButton(label, finishedPayload)
 
@@ -21,7 +18,7 @@ object FinishedMenuHandler: CallbackButtonHandler("EDIT", "FINISH") {
         return null
     }
 
-    suspend fun finish(message: Message, label: String = POST_NOT_FOUND, optionalActions: List<InlineKeyboardButton>? = null): CallbackNotificationText {
+    suspend fun finish(message: Message, label: String = "❔ Пост не найден ❔", optionalActions: List<InlineKeyboardButton>? = null): CallbackNotificationText {
         val finishedButton = createKeyboard(label)
         val inlineKeyboardMarkup = if (optionalActions == null) {
             finishedButton.toMarkup()
