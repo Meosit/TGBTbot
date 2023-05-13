@@ -35,7 +35,7 @@ object BanStore {
     }
 
     fun findByChatIdOrName(nameOrChatId: String): UserBan? = PostgresConnection.inSession {
-        first(sqlQuery(SELECT_BY_CHAT_ID_OR_NAME, nameOrChatId.toLongOrNull() ?: 0L, nameOrChatId)) { row -> row.toUserBan() }
+        first(sqlQuery(SELECT_BY_CHAT_ID_OR_NAME, nameOrChatId.toLongOrNull() ?: 0L, nameOrChatId.lowercase())) { row -> row.toUserBan() }
     }
 
     private fun Row.toUserBan() = UserBan(
@@ -72,7 +72,7 @@ object BanStore {
         """SELECT * FROM ban_list WHERE author_chat_id = ?"""
 
     private const val SELECT_BY_CHAT_ID_OR_NAME =
-        """SELECT * FROM ban_list WHERE author_chat_id = ? OR author_name = ?"""
+        """SELECT * FROM ban_list WHERE author_chat_id = ? OR lower(author_name) = ?"""
 
     private const val DELETE_BY_CHAT_ID =
         """DELETE FROM ban_list WHERE author_chat_id = ?"""

@@ -4,13 +4,14 @@ import com.tgbt.bot.MessageContext
 import com.tgbt.bot.editor.EditorButtonAction
 import com.tgbt.bot.owner.ForcePublishSuggestionsCommand
 import com.tgbt.bot.owner.ForceVKForwardCommand
-import com.tgbt.grammar.*
-import com.tgbt.misc.*
-import com.tgbt.post.*
-import com.tgbt.settings.Setting.*
-import com.tgbt.suggestion.*
-import com.tgbt.telegram.*
-import com.tgbt.telegram.api.*
+import com.tgbt.grammar.exprModule
+import com.tgbt.misc.launchScheduledRoutine
+import com.tgbt.misc.trimToLength
+import com.tgbt.settings.Setting.CHECK_PERIOD_MINUTES
+import com.tgbt.settings.Setting.SUGGESTION_POLLING_DELAY_MINUTES
+import com.tgbt.telegram.api.Update
+import com.tgbt.telegram.api.anyText
+import com.tgbt.telegram.api.simpleRef
 import io.ktor.client.*
 import io.ktor.client.plugins.*
 import io.ktor.client.statement.*
@@ -65,6 +66,7 @@ fun Application.main() {
 
     install(Routing) {
         post("/handle/$BotToken") {
+            call.respond(HttpStatusCode.OK)
             try {
                 val update = call.receive<Update>()
                 val msg = update.message ?: update.editedMessage
@@ -94,7 +96,6 @@ fun Application.main() {
                 (e as? ClientRequestException)?.response?.bodyAsText()?.let { logger.error(it) }
                 logger.error("Uncaught exception: $sw")
             }
-            call.respond(HttpStatusCode.OK)
         }
         get("/") {
             call.request
