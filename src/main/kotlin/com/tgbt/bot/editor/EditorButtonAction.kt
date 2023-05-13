@@ -166,7 +166,7 @@ object EditorButtonAction {
         message: Message,
         callback: CallbackQuery,
         rejectComment: String? = null
-    ) = doNotThrow("Failed to send rejected port") {
+    ) = doNotThrow("Failed to send rejected post") {
         if (suggestion?.editorChatId != null && suggestion.editorMessageId != null) {
             val actuallyDeleted = SuggestionStore.removeByChatAndMessageId(suggestion.editorChatId, suggestion.editorMessageId, byAuthor = false)
             if (actuallyDeleted) {

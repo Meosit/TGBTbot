@@ -3,14 +3,33 @@ package com.tgbt.telegram.api
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
+
+interface ApiResponse {
+    val ok: Boolean
+    val errorCode: Int?
+    val description: String?
+    val parameters: ApiResponseParameters?
+}
+
 @Serializable
-data class ApiResponse(
-    val ok: Boolean,
+data class MessageApiResponse(
+    override val ok: Boolean,
+    @SerialName("error_code") override val errorCode: Int? = null,
+    override val description: String? = null,
+    override val parameters: ApiResponseParameters? = null,
+
     val result: Message? = null,
-    @SerialName("error_code") val errorCode: Int? = null,
-    val description: String? = null,
-    val parameters: ApiResponseParameters? = null
-)
+): ApiResponse
+
+@Serializable
+data class BooleanApiResponse(
+    override val ok: Boolean,
+    @SerialName("error_code") override val errorCode: Int? = null,
+    override val description: String? = null,
+    override val parameters: ApiResponseParameters? = null,
+
+    val result: Boolean? = null,
+): ApiResponse
 
 @Serializable
 data class ApiResponseParameters(

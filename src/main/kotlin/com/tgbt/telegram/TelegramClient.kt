@@ -3,6 +3,8 @@ package com.tgbt.telegram
 import com.tgbt.BotHttpClient
 import com.tgbt.BotToken
 import com.tgbt.telegram.api.ApiResponse
+import com.tgbt.telegram.api.BooleanApiResponse
+import com.tgbt.telegram.api.MessageApiResponse
 import com.tgbt.telegram.output.TgImageOutput
 import com.tgbt.telegram.output.TgMessageOutput
 import io.ktor.client.call.*
@@ -17,16 +19,17 @@ object TelegramClient {
     private val logger = LoggerFactory.getLogger(TelegramClient::class.simpleName)
     private val apiUrl = "https://api.telegram.org/bot$BotToken"
 
-    private suspend fun postWithBackpressure(maxTries: Int = 5, block: HttpRequestBuilder.() -> Unit): ApiResponse {
+    private suspend inline fun <reified T: ApiResponse>postWithBackpressure(maxTries: Int = 5, block: HttpRequestBuilder.() -> Unit): T {
         var tries = 0
         while (tries < maxTries) {
             try {
                 return BotHttpClient.post(block).body()
             } catch (e: ClientRequestException) {
-                val response = e.response.body<ApiResponse>()
+                val response = e.response.body<T>()
+                val parameters = response.parameters
                 when {
-                    response.errorCode == 429 && response.parameters?.retryAfter != null -> {
-                        val retryAfter = response.parameters.retryAfter
+                    response.errorCode == 429 && parameters?.retryAfter != null -> {
+                        val retryAfter = parameters.retryAfter
                         logger.warn("Got '${response.description}'. Retrying request in $retryAfter seconds")
                         delay(retryAfter * 1000 + 500)
                         tries++
@@ -42,7 +45,8 @@ object TelegramClient {
         throw IllegalStateException("Telegram request reached limit of $maxTries tries")
     }
 
-    suspend fun editChatMessageKeyboard(chatId: String, messageId: Long, keyboardJson: String) = postWithBackpressure {
+    suspend fun editChatMessageKeyboard(chatId: String, messageId: Long, keyboardJson: String
+    ) = postWithBackpressure<MessageApiResponse> {
         url("$apiUrl/editMessageReplyMarkup")
         parameter("chat_id", chatId)
         parameter("message_id", messageId)
@@ -51,7 +55,7 @@ object TelegramClient {
 
     suspend fun editChatMessageText(
         chatId: String, messageId: Long, message: String, keyboardJson: String?, disableLinkPreview: Boolean = false
-    ) = postWithBackpressure {
+    ) = postWithBackpressure<MessageApiResponse> {
         url("$apiUrl/editMessageText")
         parameter("chat_id", chatId)
         parameter("message_id", messageId)
@@ -62,7 +66,7 @@ object TelegramClient {
     }
 
     suspend fun editChatMessageCaption(chatId: String, messageId: Long, caption: String, keyboardJson: String?) =
-        postWithBackpressure {
+        postWithBackpressure<MessageApiResponse> {
             url("$apiUrl/editMessageCaption")
             parameter("chat_id", chatId)
             parameter("message_id", messageId)
@@ -71,7 +75,8 @@ object TelegramClient {
             keyboardJson?.let { parameter("reply_markup", it) }
         }
 
-    suspend fun editChatMessagePhoto(chatId: String, messageId: Long, imageUrl: String) = postWithBackpressure {
+    suspend fun editChatMessagePhoto(chatId: String, messageId: Long, imageUrl: String
+    ) = postWithBackpressure<MessageApiResponse> {
         url("$apiUrl/editMessageMedia")
         parameter("chat_id", chatId)
         parameter("message_id", messageId)
@@ -80,7 +85,7 @@ object TelegramClient {
 
     suspend fun sendChatMessage(
         chatId: String, output: TgMessageOutput, replyMessageId: Long? = null, disableLinkPreview: Boolean = false
-    ) = postWithBackpressure {
+    ) = postWithBackpressure<MessageApiResponse> {
         url("$apiUrl/sendMessage")
         parameter("text", output.markdown())
         parameter("parse_mode", "Markdown")
@@ -90,7 +95,7 @@ object TelegramClient {
         output.keyboardJson()?.let { parameter("reply_markup", it) }
     }
 
-    suspend fun sendChatPhoto(chatId: String, output: TgImageOutput) = postWithBackpressure {
+    suspend fun sendChatPhoto(chatId: String, output: TgImageOutput) = postWithBackpressure<MessageApiResponse> {
         url("$apiUrl/sendPhoto")
         parameter("caption", output.markdown())
         parameter("photo", output.imageUrl())
@@ -100,7 +105,7 @@ object TelegramClient {
     }
 
     suspend fun pingCallbackQuery(queryId: String, notificationText: String? = null) {
-        postWithBackpressure {
+        postWithBackpressure<BooleanApiResponse> {
             url("$apiUrl/answerCallbackQuery")
             parameter("callback_query_id", queryId)
             notificationText?.let { parameter("text", it) }
@@ -108,7 +113,7 @@ object TelegramClient {
     }
 
     suspend fun leaveGroup(chatId: String) {
-        postWithBackpressure {
+        postWithBackpressure<BooleanApiResponse> {
             url("$apiUrl/leaveChat")
             parameter("chat_id", chatId)
         }
