@@ -6,7 +6,7 @@ import com.tgbt.bot.owner.ForcePublishSuggestionsCommand
 import com.tgbt.bot.owner.ForceVKForwardCommand
 import com.tgbt.grammar.exprModule
 import com.tgbt.misc.launchScheduledRoutine
-import com.tgbt.misc.trimToLength
+import com.tgbt.misc.teaserString
 import com.tgbt.settings.Setting.CHECK_PERIOD_MINUTES
 import com.tgbt.settings.Setting.SUGGESTION_POLLING_DELAY_MINUTES
 import com.tgbt.telegram.TelegramClient
@@ -80,9 +80,7 @@ fun Application.main() {
                     update.callbackQuery?.message != null -> {
                         logger.info(
                             "Callback (${update.callbackQuery.from.simpleRef})${update.callbackQuery.data} to ${
-                                update.callbackQuery.message.anyText?.trimToLength(
-                                    50
-                                )
+                                update.callbackQuery.message.anyText?.teaserString()
                             }"
                         )
                         val notificationText = CallbackButtonHandler.handle(update.callbackQuery)

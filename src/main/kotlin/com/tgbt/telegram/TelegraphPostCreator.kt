@@ -3,7 +3,7 @@ package com.tgbt.telegram
 import com.tgbt.BotHttpClient
 import com.tgbt.BotJson
 import com.tgbt.TelegraphToken
-import com.tgbt.misc.trimToLength
+import com.tgbt.misc.teaserString
 import com.tgbt.post.TgPreparedPost
 import io.ktor.client.call.*
 import io.ktor.client.plugins.*
@@ -19,7 +19,7 @@ object TelegraphPostCreator {
 
     suspend fun createPost(post: TgPreparedPost): TelegraphCreateResult {
 
-        val title = BotJson.encodeToString(String.serializer(), post.withoutImage.lineSequence().first().trimToLength(256, "…"))
+        val title = BotJson.encodeToString(String.serializer(), post.withoutImage.lineSequence().first().teaserString(256))
         val encodedText = BotJson.encodeToString(String.serializer(), post.text)
         val content = if (post.maybeImage != null) {
             """[$encodedText,{"tag":"img","attrs":{"src":"${post.maybeImage}"}}]"""

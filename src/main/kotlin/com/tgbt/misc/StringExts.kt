@@ -14,6 +14,8 @@ fun String.trimToLength(length: Int, tail: String = ""): String {
     return if (this.length <= length) this else this.take(length - tail.length) + tail
 }
 
+fun String.teaserString(length: Int = 20): String = trimToLength(length, "…").replace('\n', ' ')
+
 /**
  * Simple Markdown special chars escaping
  */
@@ -21,16 +23,14 @@ fun String.escapeMarkdown() = replace("*", "\\*")
     .replace("_", "\\_")
     .replace("`", "\\`")
 
-fun String.isImageUrl(): Boolean {
-    try {
-        val uri = URI(this)
-        return uri.host != null && (uri.path.endsWith(".jpg", ignoreCase = true)
-                || uri.path.endsWith(".jpeg", ignoreCase = true)
-                || uri.path.endsWith(".png", ignoreCase = true))
-                && (uri.scheme == "https" || uri.scheme == "http")
-    } catch (e: URISyntaxException) {
-        return false
-    }
+fun String.isImageUrl() = try {
+    val uri = URI(this)
+    (uri.host != null && (uri.path.endsWith(".jpg", ignoreCase = true)
+            || uri.path.endsWith(".jpeg", ignoreCase = true)
+            || uri.path.endsWith(".png", ignoreCase = true))
+            && (uri.scheme == "https" || uri.scheme == "http"))
+} catch (e: URISyntaxException) {
+    false
 }
 
 fun loadResourceAsString(resourceBaseName: String): String = Setting::class.java.classLoader

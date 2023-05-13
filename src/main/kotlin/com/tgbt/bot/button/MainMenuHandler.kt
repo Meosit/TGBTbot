@@ -31,7 +31,9 @@ abstract class MainMenuHandler(category: String): CallbackButtonHandler(category
         return null
     }
 
-    suspend fun finishInteraction(message: Message, label: String = "❔ Пост не найден ❔", optionalActions: List<InlineKeyboardButton>? = null) =
+    protected open val notFoundFinishLabel = "❔ Пост не найден ❔"
+
+    suspend fun finishInteraction(message: Message, label: String = notFoundFinishLabel, optionalActions: List<InlineKeyboardButton>? = null) =
         finishHandler.finish(message, label, optionalActions)
 
     val allHandlers by lazy { listOf(this, *buttonToHandler.values.toTypedArray(), finishHandler) }

@@ -16,6 +16,7 @@ For post forwarding:
 
 For user suggestions:
 /suggestions `<true|false>` - global switch for suggestions
+/owner\_as\_user `<true|false>` - when true, owners will be considered as regular users
 /gatekeeper `<tg mention>` - username or the person which will be visible for users to solve ban-related requests
 /editors\_chat `<id_number>`- set the editors chat where the suggestions will be posted for approval 
 /force\_publish\_suggestions - trigger a suggestion pooling from DB to editors chat

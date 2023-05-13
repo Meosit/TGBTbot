@@ -103,12 +103,7 @@ object ForceVKForwardCommand : BotCommand {
                     val prepared = TgPreparedPost(it.text, it.imageUrl, footerMd)
                     if (PostStore.insert(it)) {
                         logger.info(
-                            "Inserted new post https://vk.com/wall${communityId}_${it.id} '${
-                                it.text.trimToLength(
-                                    50,
-                                    "…"
-                                )
-                            }'"
+                            "Inserted new post https://vk.com/wall${communityId}_${it.id} '${it.text.teaserString()}'"
                         )
                         prepared.sendTo(targetChannel)
                         val link = "https://vk.com/wall${communityId}_${it.id}"
@@ -201,7 +196,7 @@ object ForceVKForwardCommand : BotCommand {
                         val slot = it.first
                         val post = it.second
                         when {
-                            post != null -> "- ${post.localTime.simpleFormatTime()}: '${post.text.trimToLength(20, "…").replace('\n', ' ').escapeMarkdown()}'"
+                            post != null -> "- ${post.localTime.simpleFormatTime()}: '${post.text.teaserString().escapeMarkdown()}'"
                             slot != null -> "- ${slot.time.simpleFormatTime()}: *Слот пропущен ${slot.user}*"
                             else -> "- Эта строчка не должна здесь быть..."
                         }

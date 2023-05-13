@@ -26,6 +26,7 @@ enum class Setting(private val default: String) {
     VK_SCHEDULE_ERROR_MINUTES("5"),
     // Suggestions
     SUGGESTIONS_ENABLED("true"),
+    OWNER_AS_USER("false"),
     EDITOR_CHAT_ID("-1001519413163"),
     USER_EDIT_TIME_MINUTES("10"),
     USER_SUGGESTION_DELAY_MINUTES("30"),

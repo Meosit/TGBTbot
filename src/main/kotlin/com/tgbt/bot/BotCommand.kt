@@ -4,7 +4,7 @@ interface BotCommand {
 
     val command: String
 
-    fun canHandle(message: String): Boolean = message.startsWith(command)
+    fun canHandle(context: MessageContext): Boolean = context.messageText.startsWith(command)
 
     suspend fun MessageContext.handle()
 

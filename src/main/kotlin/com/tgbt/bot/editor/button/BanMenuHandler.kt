@@ -10,7 +10,7 @@ import com.tgbt.bot.button.CallbackNotificationText
 import com.tgbt.bot.user.UserMessages
 import com.tgbt.misc.escapeMarkdown
 import com.tgbt.misc.simpleFormatTime
-import com.tgbt.misc.trimToLength
+import com.tgbt.misc.teaserString
 import com.tgbt.suggestion.SuggestionStore
 import com.tgbt.suggestion.postTextTeaser
 import com.tgbt.telegram.TelegramClient
@@ -70,10 +70,10 @@ object BanMenuHandler : CallbackButtonHandler("EDIT", "BAN"), BotCommand {
                         .format(suggestion.postTextTeaser().escapeMarkdown(), banComment.escapeMarkdown())
                 )
             )
-            logger.info("Editor ${message.from.simpleRef} banned a user ${suggestion.authorName} because of post '${suggestion.postTextTeaser()}', comment '$banComment'")
+            logger.info("Editor $pressedBy banned a user ${suggestion.authorName} because of post '${suggestion.postTextTeaser()}', comment '$banComment'")
             val label =
                 "\uD83D\uDEAB Забанен $pressedBy в ${Instant.now().simpleFormatTime()} \uD83D\uDCAC $banComment ❌"
-            EditorMainMenuHandler.finishInteraction(message, label.trimToLength(512, "…"))
+            EditorMainMenuHandler.finishInteraction(message, label.teaserString(150))
         } else {
             EditorMainMenuHandler.finishInteraction(message)
         }

@@ -1,8 +1,11 @@
 package com.tgbt.suggestion
 
-import com.tgbt.misc.trimToLength
+import com.tgbt.misc.teaserString
+import com.tgbt.settings.Setting
 import java.sql.Timestamp
 import java.time.Instant
+import java.time.temporal.ChronoUnit
+import kotlin.math.max
 
 data class UserSuggestion(
     val authorMessageId: Long,
@@ -21,5 +24,15 @@ data class UserSuggestion(
 fun UserSuggestion.authorReference(anonymous: Boolean) =
     "предложено${if (anonymous) "" else " $authorName"} через @tgbtbot"
 
-fun UserSuggestion.postTextTeaser() =
-    postText.trimToLength(20, "…").replace('\n', ' ')
+fun UserSuggestion.postTextTeaser() = postText.teaserString()
+
+fun UserSuggestion.secondsSinceCreated() = ChronoUnit.SECONDS.between(insertedTime.toInstant(), Instant.now())
+
+fun UserSuggestion.userEditSecondsRemaining() = if(editorMessageId != null) 0 else
+    max(0, Setting.USER_EDIT_TIME_MINUTES.long() * 60 - ChronoUnit.SECONDS.between(insertedTime.toInstant(), Instant.now()))
+
+fun UserSuggestion.userNewPostSecondsRemaining() = max(0, Setting.USER_SUGGESTION_DELAY_MINUTES.long() * 60 - secondsSinceCreated())
+
+fun UserSuggestion.userCanEdit() = userEditSecondsRemaining() > 0
+
+fun UserSuggestion.userCanAddNewPosts() = userNewPostSecondsRemaining() > 0

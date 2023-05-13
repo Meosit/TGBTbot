@@ -12,6 +12,7 @@ import com.tgbt.bot.owner.*
 import com.tgbt.bot.user.*
 import com.tgbt.misc.escapeMarkdown
 import com.tgbt.misc.trimToLength
+import com.tgbt.settings.Setting
 import com.tgbt.settings.Setting.EDITOR_CHAT_ID
 import com.tgbt.settings.Setting.SUGGESTIONS_ENABLED
 import com.tgbt.suggestion.SuggestionStore
@@ -65,13 +66,13 @@ data class MessageContext(
     }
 
     private suspend fun handleUpdateInternal() = when {
-        chatId in BotOwnerIds -> {
-            val command = OWNER_COMMANDS.find { it.canHandle(messageText) }
+        chatId in BotOwnerIds && !Setting.OWNER_AS_USER.bool() -> {
+            val command = OWNER_COMMANDS.find { it.canHandle(this) }
             command?.handleCommand(this) ?: TelegramClient
                 .sendChatMessage(chatId, TgTextOutput("Unknown owner command"))
         }
         message.chat.isPrivate -> {
-            val command = USER_COMMANDS.find { it.canHandle(messageText) }
+            val command = USER_COMMANDS.find { it.canHandle(this) }
             val ban = BanStore.findByChatId(message.chat.id)
             if (ban == null) {
                 command?.handleCommand(this) ?: if (SUGGESTIONS_ENABLED.bool()) {
@@ -91,7 +92,7 @@ data class MessageContext(
             }
         }
         EDITOR_CHAT_ID.str() == chatId -> {
-            val command = EDITOR_COMMANDS.find { it.canHandle(messageText) }
+            val command = EDITOR_COMMANDS.find { it.canHandle(this) }
             command?.handleCommand(this)
         }
         else -> {
@@ -135,11 +136,13 @@ data class MessageContext(
             LastDayScheduleCommand,
             LastDayMissedCommand,
             GatekeeperCommand,
+            OwnerAsUserCommand,
         )
 
         private val USER_COMMANDS: List<BotCommand> = listOf(
             UserHelpCommand,
-            UserStartCommand
+            UserStartCommand,
+            OwnerAsUserCommand
         )
 
         private val EDITOR_COMMANDS: List<BotCommand> = listOf(

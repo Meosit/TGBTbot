@@ -17,7 +17,6 @@ import com.tgbt.telegram.TelegramClient
 import com.tgbt.telegram.api.InlineKeyboardButton
 import com.tgbt.telegram.api.InlineKeyboardMarkup
 import com.tgbt.telegram.api.Message
-import com.tgbt.telegram.api.simpleRef
 import com.tgbt.telegram.output.TgTextOutput
 import org.slf4j.LoggerFactory
 import java.sql.Timestamp
@@ -79,7 +78,7 @@ sealed class PostMenuHandler(id: String, private val postEmoji: String, private 
                                 UserMessages.postPromotedMessage.format(suggestion.postTextTeaser()).escapeMarkdown()
                             )
                         )
-                        logger.info("Editor ${message.from.simpleRef} promoted post '${suggestion.postTextTeaser()}' from ${suggestion.authorName}")
+                        logger.info("Editor $pressedBy promoted post '${suggestion.postTextTeaser()}' from ${suggestion.authorName}")
                         val buttonLabel = "$postEmoji Опубликован $pressedBy в ${Instant.now().simpleFormatTime()} $postEmoji"
                         EditorMainMenuHandler.finishInteraction(message, buttonLabel)
                     }
@@ -106,7 +105,7 @@ sealed class PostMenuHandler(id: String, private val postEmoji: String, private 
                             InlineKeyboardButton("$postEmoji Прямо сейчас", callbackData(postNowPayload)),
                             InlineKeyboardButton("↩️ Отмена действия", callbackData(cancelSchedulePayload))
                         )
-                        logger.info("Editor ${message.from.simpleRef} scheduled post '${suggestion.postTextTeaser()}' from ${suggestion.authorName} to $scheduleLabel")
+                        logger.info("Editor $pressedBy scheduled post '${suggestion.postTextTeaser()}' from ${suggestion.authorName} to $scheduleLabel")
                         EditorMainMenuHandler.finishInteraction(message, buttonLabel, additionalButtons)
                     }
                 }

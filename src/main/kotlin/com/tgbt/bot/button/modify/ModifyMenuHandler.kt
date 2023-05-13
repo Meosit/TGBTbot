@@ -18,7 +18,7 @@ abstract class ModifyMenuHandler(category: String, id: String): CallbackButtonHa
 
     protected suspend fun modifyPost(message: Message, byAuthor: Boolean, action: (UserSuggestion) -> UserSuggestion): CallbackNotificationText {
         val suggestion = SuggestionStore.findByChatAndMessageId(message.chat.id, message.id, byAuthor)
-        return if (suggestion?.editorChatId != null && suggestion.editorMessageId != null) {
+        return if (suggestion != null && (byAuthor || suggestion.editorChatId != null && suggestion.editorMessageId != null)) {
             val updated = action(suggestion)
             val keyboardJson = BotJson.encodeToString(InlineKeyboardMarkup.serializer(), retrieveMainMenuHandler().rootKeyboard)
             SuggestionStore.update(updated, byAuthor)
@@ -31,30 +31,34 @@ abstract class ModifyMenuHandler(category: String, id: String): CallbackButtonHa
 
             if (message.photo != null) {
                 when {
-                    updated.imageId != suggestion.imageId -> {
-                        val imageUrl = post.maybeImage ?: message.photo.first().fileId
-                        TelegramClient.editChatMessagePhoto(message.chat.id.toString(), message.id, imageUrl)
-                    }
-
                     updated.imageId == null -> {
                         TelegramClient.editChatMessagePhoto(message.chat.id.toString(), message.id,
                             noImagePlaceholder
                         )
                     }
+
+                    updated.imageId != suggestion.imageId -> {
+                        val imageUrl = post.maybeImage ?: message.photo.first().fileId
+                        TelegramClient.editChatMessagePhoto(message.chat.id.toString(), message.id, imageUrl)
+                    }
                 }
                 val caption = post.withoutImage.trimToLength(
                     1024,
-                    "...\n_(пост стал длиннее 1024 символов, но отобразится корректно после публикации)_"
+                    "...\n_(пост длиннее 1024 символов, но отобразится корректно после публикации)_"
                 )
                 TelegramClient.editChatMessageCaption(message.chat.id.toString(), message.id, caption, keyboardJson)
             } else {
                 val disableLinkPreview = post.footerMarkdown.contains("https://")
                         && !post.text.contains("https://")
                         && !(post.maybeImage?.isImageUrl() ?: false)
+
+                val messageText = if (updated.imageId?.isImageUrl() == false)
+                    post.copy(maybeImage = unlinkabeImagePlaceholder).withImage
+                else post.withImage
                 TelegramClient.editChatMessageText(
                     message.chat.id.toString(),
                     message.id,
-                    post.withImage,
+                    messageText,
                     keyboardJson,
                     disableLinkPreview = disableLinkPreview
                 )
@@ -68,6 +72,7 @@ abstract class ModifyMenuHandler(category: String, id: String): CallbackButtonHa
     abstract fun retrieveMainMenuHandler(): MainMenuHandler
 
     companion object {
-        private const val noImagePlaceholder = "https://cdn.segmentnext.com/wp-content/themes/segmentnext/images/no-image-available.jpg"
+        private const val noImagePlaceholder = "https://i.imgur.com/BTovKoW.jpg"
+        private const val unlinkabeImagePlaceholder = "https://i.imgur.com/uvlOJR4.jpg"
     }
 }

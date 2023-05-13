@@ -57,7 +57,7 @@ object RejectMenuHandler: CallbackButtonHandler("EDIT", "REJECT"), BotCommand {
                 }
                 TelegramClient.sendChatMessage(suggestion.authorChatId.toString(), TgTextOutput(outputMessage))
                 val commentPreview = if (rejectComment != null) " \uD83D\uDCAC $rejectComment" else ""
-                logger.info("Editor ${message.from.simpleRef} rejected post '${suggestion.postTextTeaser()}' from ${suggestion.authorName} with comment '$rejectComment'")
+                logger.info("Editor $pressedBy rejected post '${suggestion.postTextTeaser()}' from ${suggestion.authorName} with comment '$rejectComment'")
                 val label = "❌ Удалён $pressedBy в ${Instant.now().simpleFormatTime()}$commentPreview ❌"
                 EditorMainMenuHandler.finishInteraction(message, label.trimToLength(512, "…"))
             } else {

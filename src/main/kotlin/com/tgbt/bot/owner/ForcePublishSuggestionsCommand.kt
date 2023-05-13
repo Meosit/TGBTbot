@@ -10,10 +10,7 @@ import com.tgbt.misc.doNotThrow
 import com.tgbt.misc.escapeMarkdown
 import com.tgbt.post.TgPreparedPost
 import com.tgbt.settings.Setting
-import com.tgbt.suggestion.SuggestionStatus
-import com.tgbt.suggestion.SuggestionStore
-import com.tgbt.suggestion.authorReference
-import com.tgbt.suggestion.postTextTeaser
+import com.tgbt.suggestion.*
 import com.tgbt.telegram.TelegramClient
 import com.tgbt.telegram.output.TgTextOutput
 import org.slf4j.LoggerFactory
@@ -30,9 +27,7 @@ object ForcePublishSuggestionsCommand : BotCommand {
     }
 
     suspend fun forwardSuggestions(forcedByOwner: Boolean = false) {
-        val targetChat = Setting.EDITOR_CHAT_ID.str()
         val suggestionsEnabled = Setting.SUGGESTIONS_ENABLED.bool()
-        val footerMd = Setting.FOOTER_MD.str()
         if (suggestionsEnabled) {
             logger.info("Checking for posts which are ready for suggestion")
             doNotThrow("Failed to change suggestions status PENDING_USER_EDIT -> READY_FOR_SUGGESTION") {
@@ -55,26 +50,12 @@ object ForcePublishSuggestionsCommand : BotCommand {
             }
             suggestions?.forEach { suggestion ->
                 doNotThrow("Failed to send single suggestion to editors group") {
-                    val post = TgPreparedPost(
-                        suggestion.postText, suggestion.imageId, footerMarkdown = footerMd,
-                        suggestionReference = suggestion.authorReference(false)
-                    )
-                    val editorMessage = post.sendTo(targetChat, EditorMainMenuHandler.rootKeyboard)
-                    if (editorMessage != null) {
-                        SuggestionStore.update(
-                            suggestion.copy(
-                                editorChatId = editorMessage.chat.id,
-                                editorMessageId = editorMessage.id,
-                                status = SuggestionStatus.PENDING_EDITOR_REVIEW
-                            ),
-                            byAuthor = true
-                        )
-                    }
+                    sendPostForReview(suggestion)
                     forwarded++
                 }
             }
             val forgotten = ForgottenSuggestionsCommand.notifyAboutForgottenSuggestions(forcedByOwner)
-            val scheduled = postScheduledSuggestions(footerMd)
+            val scheduled = postScheduledSuggestions()
             if (forcedByOwner || forwarded > 0 || forgotten > 0 || scheduled > 0) {
                 val message = "*SUGGESTIONS*\n" +
                         "\nRight now forwarded $forwarded suggestions from users." +
@@ -90,7 +71,28 @@ object ForcePublishSuggestionsCommand : BotCommand {
         }
     }
 
-    private suspend fun postScheduledSuggestions(footerMd: String): Int {
+    suspend fun sendPostForReview(suggestion: UserSuggestion) {
+        val targetChat = Setting.EDITOR_CHAT_ID.str()
+        val footerMd = Setting.FOOTER_MD.str()
+        val post = TgPreparedPost(
+            suggestion.postText, suggestion.imageId, footerMarkdown = footerMd,
+            suggestionReference = suggestion.authorReference(false)
+        )
+        val editorMessage = post.sendTo(targetChat, EditorMainMenuHandler.rootKeyboard)
+        if (editorMessage != null) {
+            SuggestionStore.update(
+                suggestion.copy(
+                    editorChatId = editorMessage.chat.id,
+                    editorMessageId = editorMessage.id,
+                    status = SuggestionStatus.PENDING_EDITOR_REVIEW
+                ),
+                byAuthor = true
+            )
+        }
+    }
+
+    private suspend fun postScheduledSuggestions(): Int {
+        val footerMd = Setting.FOOTER_MD.str()
         val targetChannel = Setting.TARGET_CHANNEL.str()
         var scheduled = 0
         val suggestions = doNotThrow("Failed to fetch scheduled suggestions from DB") {

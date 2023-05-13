@@ -47,7 +47,7 @@ object LastDayScheduleCommand : BotCommand {
                     post != null -> {
                         val stats = with(post.stats) { ("${likes}\uD83E\uDD0D ${reposts}\uD83D\uDCE2 ${comments}\uD83D\uDCAC ${views}\uD83D\uDC41") }
                         val ref = slot?.let { "\n> в слот от ${slot.user}" } ?: ""
-                        "*${post.localTime.simpleFormatTime()}*\n> '${post.text.trimToLength(20, "…").replace('\n', ' ').escapeMarkdown()}' \n> $stats$ref"
+                        "*${post.localTime.simpleFormatTime()}*\n> '${post.text.teaserString().escapeMarkdown()}' \n> $stats$ref"
                     }
                     slot != null -> "- ${slot.time.simpleFormatTime()}: *Слот пропущен ${slot.user}*"
                     else -> "- Эта строчка не должна здесь быть..."
