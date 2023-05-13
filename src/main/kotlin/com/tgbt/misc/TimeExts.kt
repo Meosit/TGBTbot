@@ -29,5 +29,5 @@ fun LocalTime?.inLocalRange(start: LocalTime, end: LocalTime): Boolean {
     }
     val range = if (end >= start)
         start..end else end..start
-    return if (start >= end) this in range else this !in range
+    return if (end >= start) this in range else this !in range
 }
