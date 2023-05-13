@@ -51,7 +51,7 @@ object EditorButtonAction {
         "ddos" to "Заебал",
         "ddos2" to "Спамить нельзя",
         "over" to "Довыебывался",
-        "fck" to "Ну и иди нахуй",
+        "fck" to "Ну и иди в бан",
         "calm" to "Посиди в бане, подумай над тем что скинул",
         "shame" to "Твоим родителям должно быть стыдно"
     )
@@ -183,7 +183,7 @@ object EditorButtonAction {
                     authorName = suggestion.authorName,
                     postTeaser = suggestion.postTextTeaser(),
                     reason = banComment,
-                    bannedBy = message.from?.simpleRef ?: "unknown"
+                    bannedBy = callback.from.simpleRef
                 )
                 banStore.insert(ban)
                 logger.info("User ${ban.authorName} was banned by ${ban.bannedBy}")
