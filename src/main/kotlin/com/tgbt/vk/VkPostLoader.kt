@@ -1,6 +1,7 @@
 package com.tgbt.vk
 
 import io.ktor.client.HttpClient
+import io.ktor.client.call.*
 import io.ktor.client.request.get
 import org.slf4j.LoggerFactory
 
@@ -21,7 +22,7 @@ class VkPostLoader(private val http: HttpClient, token: String) {
             val count = if (remainig < MAX_POSTS_COUNT) remainig else MAX_POSTS_COUNT
             val url = "$apiBaseUrl&count=$count&offset=$offset&owner_id=$communityId"
             logger.info("Fetching from $url")
-            val pageItems = http.get<VkWallGet>(url).response.items
+            val pageItems = http.get(url).body<VkWallGet>().response.items
             items.addAll(pageItems)
             offset += MAX_POSTS_COUNT
             remainig -= MAX_POSTS_COUNT

@@ -4,7 +4,7 @@ import com.tgbt.misc.trimToLength
 import com.tgbt.post.TgPreparedPost
 import io.ktor.client.*
 import io.ktor.client.call.*
-import io.ktor.client.features.*
+import io.ktor.client.plugins.*
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
@@ -28,7 +28,7 @@ class TelegraphPostCreator(private val httpClient: HttpClient, private val json:
         return try {
             httpClient.post {
                 url("$apiUrl/createPost")
-                body = TextContent("""
+                setBody(TextContent("""
                     {
                         "title": $title,
                         "access_token": "$apiToken",
@@ -36,12 +36,12 @@ class TelegraphPostCreator(private val httpClient: HttpClient, private val json:
                     }
                     """.trimIndent(),
                     ContentType.Application.Json
-                )
-            }
+                ))
+            }.body()
         } catch (e: ClientRequestException) {
-            e.response.receive()
+            e.response.body()
         } catch (e: ServerResponseException) {
-            TelegraphCreateResult(false, error = e.response.readText())
+            TelegraphCreateResult(false, error = e.response.bodyAsText())
         }
     }
 

@@ -21,25 +21,26 @@ import com.tgbt.vk.VkPost
 import com.tgbt.vk.VkPostLoader
 import com.vladsch.kotlin.jdbc.HikariCP
 import com.vladsch.kotlin.jdbc.SessionImpl
-import io.ktor.application.*
 import io.ktor.client.*
-import io.ktor.client.features.*
-import io.ktor.client.features.json.*
-import io.ktor.client.features.json.serializer.*
+import io.ktor.client.plugins.*
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
-import io.ktor.features.*
 import io.ktor.http.*
-import io.ktor.request.*
-import io.ktor.response.*
-import io.ktor.routing.*
 import io.ktor.serialization.*
-import io.ktor.server.netty.*
+import io.ktor.serialization.kotlinx.json.*
+import io.ktor.server.application.*
+import io.ktor.server.jetty.*
+import io.ktor.server.plugins.callloging.*
+import io.ktor.server.plugins.defaultheaders.*
+import io.ktor.server.request.*
+import io.ktor.server.response.*
+import io.ktor.server.routing.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.modules.plus
 import org.slf4j.LoggerFactory
+import org.slf4j.event.*
 import java.io.PrintWriter
 import java.io.StringWriter
 import java.net.URI
@@ -69,17 +70,16 @@ fun Application.main() {
         serializersModule += exprModule
     }
 
-    install(ContentNegotiation) {
-        json(json, ContentType.Application.Json)
-    }
-    install(DefaultHeaders)
-    install(CallLogging)
-
     initializeDataSource(dbUrl)
 
+    install(DefaultHeaders)
+    install(CallLogging)
+    install(io.ktor.server.plugins.contentnegotiation.ContentNegotiation) {
+        json(json)
+    }
     val httpClient = HttpClient {
-        install(JsonFeature) {
-            serializer = KotlinxSerializer(json)
+        install(io.ktor.client.plugins.contentnegotiation.ContentNegotiation) {
+            json(json)
         }
     }
 
@@ -93,7 +93,17 @@ fun Application.main() {
     val telegraphPostCreator = TelegraphPostCreator(httpClient, json, telegraphApiToken)
     val vkPostLoader = VkPostLoader(httpClient, vkServiceToken)
 
-    val botContext = BotContext(json, ownerIds, postStore, suggestionStore, banStore, settings, tgMessageSender, telegraphPostCreator, vkPostLoader)
+    val botContext = BotContext(
+        json,
+        ownerIds,
+        postStore,
+        suggestionStore,
+        banStore,
+        settings,
+        tgMessageSender,
+        telegraphPostCreator,
+        vkPostLoader
+    )
 
     install(Routing) {
         post("/handle/$tgBotToken") {
@@ -105,17 +115,25 @@ fun Application.main() {
                         val msgContext = MessageContext(botContext, msg, isEdit = update.editedMessage != null)
                         msgContext.handleUpdate()
                     }
+
                     update.callbackQuery != null -> {
-                        logger.info("Callback (${update.callbackQuery.from.simpleRef})${update.callbackQuery.data} to ${update.callbackQuery.message?.anyText?.trimToLength(50)}")
+                        logger.info(
+                            "Callback (${update.callbackQuery.from.simpleRef})${update.callbackQuery.data} to ${
+                                update.callbackQuery.message?.anyText?.trimToLength(
+                                    50
+                                )
+                            }"
+                        )
                         EditorButtonAction.handleActionCallback(botContext, update.callbackQuery)
                     }
+
                     else -> logger.info("Nothing useful, do nothing with this update")
                 }
             } catch (e: Exception) {
                 logger.error("Received exception while handling update: ${e.message}")
                 val sw = StringWriter()
                 e.printStackTrace(PrintWriter(sw))
-                (e as? ClientRequestException)?.response?.readText()?.let { logger.error(it) }
+                (e as? ClientRequestException)?.response?.bodyAsText()?.let { logger.error(it) }
                 logger.error("Uncaught exception: $sw")
             }
             call.respond(HttpStatusCode.OK)
@@ -133,12 +151,12 @@ fun Application.main() {
                 val delayMinutes = settings.long(CHECK_PERIOD_MINUTES)
                 logger.info("Next post forward check after $delayMinutes minutes")
                 val delayMillis = TimeUnit.MINUTES.toMillis(delayMinutes)
-                selfPing(httpClient, appUrl)
                 delay(delayMillis)
             } catch (e: Exception) {
-                val message = "Unexpected error occurred while reposting, next try in 60 seconds, error message:\n`${e.message?.escapeMarkdown()}`"
+                val message =
+                    "Unexpected error occurred while reposting, next try in 60 seconds, error message:\n`${e.message?.escapeMarkdown()}`"
                 logger.error(message, e)
-                (e as? ClientRequestException)?.response?.readText()?.let { logger.error(it) }
+                (e as? ClientRequestException)?.response?.bodyAsText()?.let { logger.error(it) }
                 val output = TgTextOutput(message)
                 ownerIds.forEach { tgMessageSender.sendChatMessage(it, output) }
                 delay(60000)
@@ -152,25 +170,18 @@ fun Application.main() {
                 val delayMinutes = settings.long(SUGGESTION_POLLING_DELAY_MINUTES)
                 logger.info("Next suggestion polling after $delayMinutes minutes")
                 val delayMillis = TimeUnit.MINUTES.toMillis(delayMinutes)
-                // don't need that anymore
-                // selfPing(httpClient, appUrl)
                 delay(delayMillis)
             } catch (e: Exception) {
-                val message = "Unexpected error occurred while suggestions pooling, next try in 60 seconds, error message:\n`${e.message?.escapeMarkdown()}`"
+                val message =
+                    "Unexpected error occurred while suggestions pooling, next try in 60 seconds, error message:\n`${e.message?.escapeMarkdown()}`"
                 logger.error(message, e)
-                (e as? ClientRequestException)?.response?.readText()?.let { logger.error(it) }
+                (e as? ClientRequestException)?.response?.bodyAsText()?.let { logger.error(it) }
                 val output = TgTextOutput(message)
                 ownerIds.forEach { tgMessageSender.sendChatMessage(it, output) }
                 delay(60000)
             }
         } while (true)
     }
-}
-
-private suspend fun selfPing(httpClient: HttpClient, appUrl: String) {
-    logger.info("Starting self-ping...")
-    val response = httpClient.get<String>(appUrl)
-    logger.info("Finished self-ping with response: '$response'")
 }
 
 suspend fun BotContext.sendLastDaySchedule(onlyMissed: Boolean = false) {
@@ -283,7 +294,13 @@ suspend fun BotContext.forwardVkPosts(forcedByOwner: Boolean = false) {
                         "${stats["condition"]} after filtering by condition\n" +
                         "Posts:\n> " + forwarded.joinToString("\n> ")
                 logger.info(message)
-                ownerIds.forEach { tgMessageSender.sendChatMessage(it, TgTextOutput(message), disableLinkPreview = true) }
+                ownerIds.forEach {
+                    tgMessageSender.sendChatMessage(
+                        it,
+                        TgTextOutput(message),
+                        disableLinkPreview = true
+                    )
+                }
             }
         }
         doNotThrow("Failed to send freeze notification") {
@@ -325,9 +342,20 @@ suspend fun BotContext.forwardVkPosts(forcedByOwner: Boolean = false) {
                 val post = latestSchedule.findLast { it.second != null }?.second
                 if (vkFreezeNotifySchedule && slot != null && post != null) {
                     logger.info("Found missing slot for ${slot.user} with $freeze min freeze, slot error is $slotError min")
-                    val message = generateSlotMissingMessage(slot.time.simpleFormatTime(), slot.user, post.localTime.simpleFormatTime(), freeze)
+                    val message = generateSlotMissingMessage(
+                        slot.time.simpleFormatTime(),
+                        slot.user,
+                        post.localTime.simpleFormatTime(),
+                        freeze
+                    )
                     tgMessageSender.sendChatMessage(editorsChatId, TgTextOutput(message), disableLinkPreview = true)
-                    if (vkFreezeSendStatus) ownerIds.forEach { tgMessageSender.sendChatMessage(it, TgTextOutput(message), disableLinkPreview = true) }
+                    if (vkFreezeSendStatus) ownerIds.forEach {
+                        tgMessageSender.sendChatMessage(
+                            it,
+                            TgTextOutput(message),
+                            disableLinkPreview = true
+                        )
+                    }
                 }
             }
 
@@ -441,7 +469,10 @@ suspend fun BotContext.forwardSuggestions(forcedByOwner: Boolean = false) {
             for (suggestion in suggestions) {
                 val diffMinutes = ChronoUnit.MINUTES.between(suggestion.insertedTime.toInstant(), Instant.now())
                 if (diffMinutes >= editTimeMinutes) {
-                    suggestionStore.update(suggestion.copy(status = SuggestionStatus.READY_FOR_SUGGESTION), byAuthor = true)
+                    suggestionStore.update(
+                        suggestion.copy(status = SuggestionStatus.READY_FOR_SUGGESTION),
+                        byAuthor = true
+                    )
                 }
             }
         }
@@ -507,10 +538,11 @@ suspend fun BotContext.notifyAboutForgottenSuggestions(force: Boolean = false, c
                     .between(Instant.now(), suggestion.insertedTime.toInstant()).abs().toHours()
                 if (hoursSinceCreated > createdBeforeHours) {
                     logger.info("Post from ${suggestion.authorName} created $hoursSinceCreated hours ago")
-                    runCatching {
+                    val a: Result<Unit> = runCatching {
                         sendPendingReviewNotification(suggestion, hoursSinceCreated)
-                    }.recover { e ->
-                        val wait = (e as? ClientRequestException)?.response?.readText()
+                    }
+                    a.recover { e: Throwable ->
+                        val wait = (e as? ClientRequestException)?.response?.bodyAsText()
                             ?.let { error -> retryAfterRegex.find(error)?.let { it.groupValues[1] } }
                             ?.toLongOrNull()
                         wait?.let {
@@ -552,12 +584,22 @@ private suspend fun BotContext.postScheduledSuggestions(footerMd: String): Int {
                     .authorReference(anonymous)
             )
             sendTelegramPost(targetChannel, post)
-            suggestionStore.removeByChatAndMessageId(suggestion.authorChatId, suggestion.authorMessageId, byAuthor = true)
+            suggestionStore.removeByChatAndMessageId(
+                suggestion.authorChatId,
+                suggestion.authorMessageId,
+                byAuthor = true
+            )
             scheduled++
             if (settings.bool(SEND_PROMOTION_FEEDBACK)) {
                 try {
-                    tgMessageSender.sendChatMessage(suggestion.authorChatId.toString(),
-                        TgTextOutput(UserMessages.postPromotedMessage.format(suggestion.postTextTeaser().escapeMarkdown())))
+                    tgMessageSender.sendChatMessage(
+                        suggestion.authorChatId.toString(),
+                        TgTextOutput(
+                            UserMessages.postPromotedMessage.format(
+                                suggestion.postTextTeaser().escapeMarkdown()
+                            )
+                        )
+                    )
                 } catch (e: ClientRequestException) {
                     if (e.response.status == HttpStatusCode.Forbidden) {
                         logger.info("Skipping promotion feedback for user ${suggestion.authorName} (${suggestion.authorChatId}): FORBIDDEN")
@@ -576,16 +618,23 @@ suspend inline fun <T> BotContext.doNotThrow(message: String, block: () -> T?): 
     block()
 } catch (e: Exception) {
     val response = (e as? ClientRequestException)?.response
-    val clientError = (response?.readText() ?: e.message)?.ifBlank { "none" }?.escapeMarkdown() ?: "none"
-    val textParameter = (response?.let { it.request.url.parameters["text"].orEmpty() }.orEmpty()).trimToLength(400, "|<- truncated").ifBlank { "none" }.escapeMarkdown()
-    val markdownText = "$message, please check logs, error message:\n`$clientError`\n\nText parameter (first 400 chars): `$textParameter`\n\n"
+    val clientError = (response?.bodyAsText() ?: e.message)?.ifBlank { "none" }?.escapeMarkdown() ?: "none"
+    val textParameter =
+        (response?.let { it.request.url.parameters["text"].orEmpty() }.orEmpty()).trimToLength(400, "|<- truncated")
+            .ifBlank { "none" }.escapeMarkdown()
+    val markdownText =
+        "$message, please check logs, error message:\n`$clientError`\n\nText parameter (first 400 chars): `$textParameter`\n\n"
     logger.error(markdownText, e)
     val output = TgTextOutput(markdownText)
     ownerIds.forEach { tgMessageSender.sendChatMessage(it, output) }
     null
 }
 
-suspend fun BotContext.sendTelegramPost(targetChat: String, prepared: TgPreparedPost, keyboardMarkup: InlineKeyboardMarkup? = null): Message? {
+suspend fun BotContext.sendTelegramPost(
+    targetChat: String,
+    prepared: TgPreparedPost,
+    keyboardMarkup: InlineKeyboardMarkup? = null
+): Message? {
     val usePhotoMode = settings.bool(USE_PHOTO_MODE)
     val keyboardJson = keyboardMarkup?.let { json.encodeToString(InlineKeyboardMarkup.serializer(), keyboardMarkup) }
     return when {
@@ -594,13 +643,18 @@ suspend fun BotContext.sendTelegramPost(targetChat: String, prepared: TgPrepared
                 targetChat,
                 TgImageOutput(prepared.withoutImage, prepared.imageUrl(), keyboardJson)
             ).result
+
         prepared.withImage.length > 4096 -> {
             val (ok, error, result) = telegraphPostCreator.createPost(prepared)
             when {
                 ok && result != null -> {
-                    val output = TgTextOutput("Слишком длиннобугурт, поэтому читайте в телеграфе: [${result.title}](${result.url})${prepared.formattedFooter}", keyboardJson)
+                    val output = TgTextOutput(
+                        "Слишком длиннобугурт, поэтому читайте в телеграфе: [${result.title}](${result.url})${prepared.formattedFooter}",
+                        keyboardJson
+                    )
                     tgMessageSender.sendChatMessage(targetChat, output, disableLinkPreview = false).result
                 }
+
                 else -> {
                     val message = "Failed to create Telegraph post, please check logs, error message:\n`${error}`"
                     logger.error(message)
@@ -610,6 +664,7 @@ suspend fun BotContext.sendTelegramPost(targetChat: String, prepared: TgPrepared
                 }
             }
         }
+
         else -> {
             // footer links should not be previewed.
             val disableLinkPreview = prepared.footerMarkdown.contains("https://")
