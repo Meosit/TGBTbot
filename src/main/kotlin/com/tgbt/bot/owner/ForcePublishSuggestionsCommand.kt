@@ -6,6 +6,7 @@ import com.tgbt.bot.MessageContext
 import com.tgbt.bot.editor.EditorButtonAction
 import com.tgbt.bot.editor.ForgottenSuggestionsCommand
 import com.tgbt.bot.user.UserMessages
+import com.tgbt.misc.doNotThrow
 import com.tgbt.misc.escapeMarkdown
 import com.tgbt.post.TgPreparedPost
 import com.tgbt.settings.Setting
@@ -15,7 +16,6 @@ import com.tgbt.suggestion.authorReference
 import com.tgbt.suggestion.postTextTeaser
 import com.tgbt.telegram.TelegramClient
 import com.tgbt.telegram.output.TgTextOutput
-import doNotThrow
 import org.slf4j.LoggerFactory
 import java.time.Instant
 import java.time.temporal.ChronoUnit

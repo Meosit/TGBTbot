@@ -3,10 +3,7 @@ package com.tgbt.bot.owner
 import com.tgbt.BotOwnerIds
 import com.tgbt.bot.BotCommand
 import com.tgbt.bot.MessageContext
-import com.tgbt.misc.escapeMarkdown
-import com.tgbt.misc.simpleFormatTime
-import com.tgbt.misc.trimToLength
-import com.tgbt.misc.zonedNow
+import com.tgbt.misc.*
 import com.tgbt.post.localTime
 import com.tgbt.post.toPost
 import com.tgbt.post.zonedTime
@@ -15,7 +12,6 @@ import com.tgbt.telegram.TelegramClient
 import com.tgbt.telegram.output.TgTextOutput
 import com.tgbt.vk.VkPost
 import com.tgbt.vk.VkPostLoader
-import doNotThrow
 import java.time.Duration
 
 object LastDayScheduleCommand : BotCommand {

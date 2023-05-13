@@ -12,7 +12,6 @@ import com.tgbt.telegram.TelegramClient
 import com.tgbt.telegram.output.TgTextOutput
 import com.tgbt.vk.VkPost
 import com.tgbt.vk.VkPostLoader
-import doNotThrow
 import org.slf4j.LoggerFactory
 import java.time.Duration
 import java.time.LocalTime

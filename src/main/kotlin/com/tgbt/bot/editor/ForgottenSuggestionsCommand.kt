@@ -2,6 +2,7 @@ package com.tgbt.bot.editor
 
 import com.tgbt.bot.BotCommand
 import com.tgbt.bot.MessageContext
+import com.tgbt.misc.doNotThrow
 import com.tgbt.misc.zonedNow
 import com.tgbt.settings.Setting
 import com.tgbt.suggestion.SuggestionStatus
@@ -9,7 +10,6 @@ import com.tgbt.suggestion.SuggestionStore
 import com.tgbt.suggestion.UserSuggestion
 import com.tgbt.telegram.TelegramClient
 import com.tgbt.telegram.output.TgTextOutput
-import doNotThrow
 import kotlinx.coroutines.delay
 import org.slf4j.LoggerFactory
 import java.time.Duration

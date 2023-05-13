@@ -1,6 +1,6 @@
+package com.tgbt.misc
+
 import com.tgbt.BotOwnerIds
-import com.tgbt.misc.escapeMarkdown
-import com.tgbt.misc.trimToLength
 import com.tgbt.settings.Setting
 import com.tgbt.telegram.TelegramClient
 import com.tgbt.telegram.output.TgTextOutput
