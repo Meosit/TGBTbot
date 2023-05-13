@@ -23,8 +23,6 @@ For user suggestions forwarding:
 /suggestion\_pooling `<minutes>` - time between new suggestions check
 /suggestion\_delay `<minutes>` - cool down between user suggestions
 /suggestion\_edit `<minutes>` - time for user to edit his/her suggestion
-/suggestions\_promotion `<true|false>` - if true then notify users when the post was approved
-/suggestions\_deletion `<true|false>` - if true then notify users when the post was deleted and discarded
 /clean\_old\_suggestions `<days>` - delete suggestion from DB which older than provided amount of days
 
 For VK freeze timeout notifications (when no new posts appear):

@@ -135,8 +135,6 @@ data class MessageContext(
             SuggestionPoolingCommand,
             SuggestionsCleanCommand,
             SuggestionsCommand,
-            SuggestionsDeletionCommand,
-            SuggestionsPromotionCommand,
             VkIdCommand,
             VkFreezeMentionsCommand,
             VkFreezeTimeoutCommand,

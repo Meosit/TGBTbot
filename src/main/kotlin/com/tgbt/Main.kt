@@ -63,7 +63,6 @@ val BotToken: String = System.getenv("TG_BOT_TOKEN")
 val BotOwnerIds: List<String> = if (System.getenv("OWNER_IDS").isNullOrBlank()) emptyList() else
     System.getenv("OWNER_IDS").split(',')
 
-val AppUrl: String = System.getenv("TELEGRAPH_TOKEN")
 val TelegraphToken: String = System.getenv("TELEGRAPH_TOKEN")
 val VkToken: String = System.getenv("VK_SERVICE_TOKEN")
 val DatabaseUrl: String = System.getenv("DATABASE_URL")
@@ -506,24 +505,12 @@ suspend fun notifyAboutForgottenSuggestions(force: Boolean = false, createdBefor
         logger.info("Currently there are ${forgottenSuggestions?.size} forgotten posts, notifying...")
         forgottenSuggestions?.forEach { suggestion ->
             doNotThrow("Failed to notify about forgotten post") {
-                val retryAfterRegex = """\{\s*"retry_after"\s*:\s*(\d+)\s*}""".toRegex()
                 val hoursSinceCreated = Duration
                     .between(Instant.now(), suggestion.insertedTime.toInstant()).abs().toHours()
                 if (hoursSinceCreated > createdBeforeHours) {
                     logger.info("Post from ${suggestion.authorName} created $hoursSinceCreated hours ago")
-                    val a: Result<Unit> = runCatching {
-                        sendPendingReviewNotification(suggestion, hoursSinceCreated)
-                    }
-                    a.recover { e: Throwable ->
-                        val wait = (e as? ClientRequestException)?.response?.bodyAsText()
-                            ?.let { error -> retryAfterRegex.find(error)?.let { it.groupValues[1] } }
-                            ?.toLongOrNull()
-                        wait?.let {
-                            delay(wait * 1000L + 200)
-                            sendPendingReviewNotification(suggestion, hoursSinceCreated)
-                        }
-                    }
-                    delay(200)
+                    sendPendingReviewNotification(suggestion, hoursSinceCreated)
+                    delay(3100)
                     forgotten++
                 }
             }
@@ -563,24 +550,14 @@ private suspend fun postScheduledSuggestions(footerMd: String): Int {
                 byAuthor = true
             )
             scheduled++
-            if (SEND_PROMOTION_FEEDBACK.bool()) {
-                try {
-                    TelegramClient.sendChatMessage(
-                        suggestion.authorChatId.toString(),
-                        TgTextOutput(
-                            UserMessages.postPromotedMessage.format(
-                                suggestion.postTextTeaser().escapeMarkdown()
-                            )
-                        )
+            TelegramClient.sendChatMessage(
+                suggestion.authorChatId.toString(),
+                TgTextOutput(
+                    UserMessages.postPromotedMessage.format(
+                        suggestion.postTextTeaser().escapeMarkdown()
                     )
-                } catch (e: ClientRequestException) {
-                    if (e.response.status == HttpStatusCode.Forbidden) {
-                        logger.info("Skipping promotion feedback for user ${suggestion.authorName} (${suggestion.authorChatId}): FORBIDDEN")
-                    } else {
-                        throw e
-                    }
-                }
-            }
+                )
+            )
             logger.info("Posted scheduled post '${suggestion.postTextTeaser()}' from ${suggestion.authorName}")
         }
     }

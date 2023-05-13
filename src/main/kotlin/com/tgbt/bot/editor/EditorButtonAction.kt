@@ -16,8 +16,6 @@ import com.tgbt.suggestion.*
 import com.tgbt.telegram.TelegramClient
 import com.tgbt.telegram.api.*
 import com.tgbt.telegram.output.TgTextOutput
-import io.ktor.client.plugins.*
-import io.ktor.http.*
 import org.slf4j.LoggerFactory
 import java.sql.Timestamp
 import java.time.Duration
@@ -172,26 +170,17 @@ object EditorButtonAction {
         if (suggestion?.editorChatId != null && suggestion.editorMessageId != null) {
             val actuallyDeleted = SuggestionStore.removeByChatAndMessageId(suggestion.editorChatId, suggestion.editorMessageId, byAuthor = false)
             if (actuallyDeleted) {
-                if (Setting.SEND_DELETION_FEEDBACK.bool()) {
-                    val outputMessage = if (rejectComment != null) {
-                        UserMessages.postDiscardedWithCommentMessage.format(suggestion.postTextTeaser().escapeMarkdown(), rejectComment.escapeMarkdown())
-                    } else {
-                        UserMessages.postDiscardedMessage.format(suggestion.postTextTeaser().escapeMarkdown())
-                    }
-                    try {
-                        TelegramClient.sendChatMessage(suggestion.authorChatId.toString(), TgTextOutput(outputMessage))
-                    } catch (e: ClientRequestException) {
-                        if (e.response.status == HttpStatusCode.Forbidden) {
-                            logger.info("Skipping deletion feedback for user ${suggestion.authorName} (${suggestion.authorChatId}): FORBIDDEN")
-                        } else {
-                            throw e
-                        }
-                    }
+                val outputMessage = if (rejectComment != null) {
+                    UserMessages.postDiscardedWithCommentMessage.format(suggestion.postTextTeaser().escapeMarkdown(), rejectComment.escapeMarkdown())
+                } else {
+                    UserMessages.postDiscardedMessage.format(suggestion.postTextTeaser().escapeMarkdown())
                 }
+
                 val commentPreview = if (rejectComment != null) " \uD83D\uDCAC $rejectComment" else ""
                 sendDeletedConfirmation(message, callback,
                     "❌ Удалён ${callback.userRef()} в ${Instant.now().simpleFormatTime()}$commentPreview ❌".trimToLength(512, "…"))
                 logger.info("Editor ${message.from?.simpleRef} rejected post '${suggestion.postTextTeaser()}' from ${suggestion.authorName} with comment '$rejectComment'")
+                TelegramClient.sendChatMessage(suggestion.authorChatId.toString(), TgTextOutput(outputMessage))
             } else {
                 sendPostNotFound(message, callback)
             }
@@ -349,18 +338,8 @@ object EditorButtonAction {
             SuggestionStore.removeByChatAndMessageId(suggestion.editorChatId, suggestion.editorMessageId, byAuthor = false)
             val emoji = if (anonymous) "✅" else "☑️"
             sendDeletedConfirmation(message, callback, "$emoji Опубликован ${callback.userRef()} в ${Instant.now().simpleFormatTime()} $emoji")
-            if (Setting.SEND_PROMOTION_FEEDBACK.bool()) {
-                try {
-                    TelegramClient.sendChatMessage(suggestion.authorChatId.toString(),
-                        TgTextOutput(UserMessages.postPromotedMessage.format(suggestion.postTextTeaser()).escapeMarkdown()))
-                } catch (e: ClientRequestException) {
-                    if (e.response.status == HttpStatusCode.Forbidden) {
-                        logger.info("Skipping promotion feedback for user ${suggestion.authorName} (${suggestion.authorChatId}): FORBIDDEN")
-                    } else {
-                        throw e
-                    }
-                }
-            }
+            TelegramClient.sendChatMessage(suggestion.authorChatId.toString(),
+                TgTextOutput(UserMessages.postPromotedMessage.format(suggestion.postTextTeaser()).escapeMarkdown()))
             logger.info("Editor ${message.from?.simpleRef} promoted post '${suggestion.postTextTeaser()}' from ${suggestion.authorName}")
         } else {
             sendPostNotFound(message, callback)

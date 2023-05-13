@@ -24,13 +24,18 @@ object TelegramClient {
                 return BotHttpClient.post(block).body()
             } catch (e: ClientRequestException) {
                 val response = e.response.body<ApiResponse>()
-                if (response.errorCode == 429 && response.parameters?.retryAfter != null) {
-                    val retryAfter = response.parameters.retryAfter
-                    logger.warn("Got '${response.description}'. Retrying request in $retryAfter seconds")
-                    delay(retryAfter * 1000 + 500)
-                    tries++
-                } else {
-                    throw e
+                when {
+                    response.errorCode == 429 && response.parameters?.retryAfter != null -> {
+                        val retryAfter = response.parameters.retryAfter
+                        logger.warn("Got '${response.description}'. Retrying request in $retryAfter seconds")
+                        delay(retryAfter * 1000 + 500)
+                        tries++
+                    }
+                    response.errorCode == 403 -> {
+                        logger.warn("Got '${response.description}'. Ignoring it")
+                        return response
+                    }
+                    else -> throw e
                 }
             }
         }

@@ -43,13 +43,13 @@ class EditorUpdatePostCommand(private val suggestion: UserSuggestion): PostComma
                         if (suggestion.editorChatId != null && suggestion.editorMessageId != null) {
                             val actuallyDeleted = SuggestionStore.removeByChatAndMessageId(suggestion.editorChatId, suggestion.editorMessageId, byAuthor = false)
                             if (actuallyDeleted) {
-                                TelegramClient.sendChatMessage(suggestion.authorChatId.toString(), TgTextOutput(UserMessages.postDiscardedWithCommentMessage
-                                    .format(suggestion.postTextTeaser().escapeMarkdown(), value.escapeMarkdown())))
                                 val keyboardJson = BotJson.encodeToString(
                                     InlineKeyboardMarkup.serializer(),
                                     InlineKeyboardButton("❌ Удалён ${message.from?.simpleRef ?: "anon"} в ${Instant.now().simpleFormatTime()} \uD83D\uDCAC $value ❌".trimToLength(512, "…"), EditorButtonAction.DELETED_DATA).toMarkup())
                                 TelegramClient.editChatMessageKeyboard(suggestion.editorChatId.toString(), suggestion.editorMessageId, keyboardJson)
                                 logger.info("Editor ${message.from?.simpleRef} rejected post '${suggestion.postTextTeaser()}' from ${suggestion.authorName} with comment '$value'")
+                                TelegramClient.sendChatMessage(suggestion.authorChatId.toString(), TgTextOutput(UserMessages.postDiscardedWithCommentMessage
+                                    .format(suggestion.postTextTeaser().escapeMarkdown(), value.escapeMarkdown())))
                             }
                         }
                     }
@@ -73,13 +73,13 @@ class EditorUpdatePostCommand(private val suggestion: UserSuggestion): PostComma
                             }
                             val actuallyDeleted = SuggestionStore.removeByChatAndMessageId(suggestion.editorChatId, suggestion.editorMessageId, byAuthor = false)
                             if (actuallyDeleted) {
-                                TelegramClient.sendChatMessage(suggestion.authorChatId.toString(), TgTextOutput(UserMessages.bannedErrorMessage
-                                    .format(suggestion.postTextTeaser().escapeMarkdown(), comment.escapeMarkdown())))
                                 val keyboardJson = BotJson.encodeToString(
                                     InlineKeyboardMarkup.serializer(),
                                     InlineKeyboardButton("\uD83D\uDEAB Забанен ${message.from?.simpleRef ?: "anon"} в ${Instant.now().simpleFormatTime()} \uD83D\uDCAC $comment ❌".trimToLength(512, "…"), EditorButtonAction.DELETED_DATA).toMarkup())
                                 TelegramClient.editChatMessageKeyboard(suggestion.editorChatId.toString(), suggestion.editorMessageId, keyboardJson)
                                 logger.info("Editor ${message.from?.simpleRef} banned a user ${suggestion.authorName} because of post '${suggestion.postTextTeaser()}', comment '$comment'")
+                                TelegramClient.sendChatMessage(suggestion.authorChatId.toString(), TgTextOutput(UserMessages.bannedErrorMessage
+                                    .format(suggestion.postTextTeaser().escapeMarkdown(), comment.escapeMarkdown())))
                             }
                         }
                     }
