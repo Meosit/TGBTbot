@@ -45,7 +45,7 @@ data class MessageContext(
     suspend fun handleUpdate() {
         try {
             logger.info("Message [${message.chat.title ?: ("${message.chat.firstName} ${message.chat.lastName}")};$chatId]" +
-                    "(${message.from?.simpleRef ?: "???"})" +
+                    "(${message.from.simpleRef})" +
                     (if (isEdit) "{EDIT}" else "") +
                     (message.photo?.let { "{PH}" } ?: "") +
                     (if (message.photo == null && message.caption != null) "{FWD}" else  "") +
@@ -93,17 +93,7 @@ data class MessageContext(
         }
         EDITOR_CHAT_ID.str() == chatId -> {
             val command = EDITOR_COMMANDS.find { it.canHandle(messageText) }
-            when {
-                command != null -> command.handleCommand(this)
-                replyMessage?.from?.isBot == true -> {
-                    val suggestion = SuggestionStore.findByChatAndMessageId(message.chat.id, replyMessage.id, byAuthor = false)
-                    if (suggestion != null) {
-                        EditorUpdatePostCommand(suggestion).handleCommand(this)
-                    }
-                    Unit
-                }
-                else -> Unit
-            }
+            command?.handleCommand(this)
         }
         else -> {
             BotOwnerIds.forEach { TelegramClient.sendChatMessage(it, TgTextOutput("Bot added in non-editors chat! Message dump:\n```$message```")) }
@@ -158,6 +148,7 @@ data class MessageContext(
             ForgottenSuggestionsCommand,
             UnbanCommand,
             ForceVKForwardCommand,
+            EditorUpdatePostCommand
         )
     }
 }

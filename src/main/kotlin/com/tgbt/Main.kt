@@ -1,7 +1,7 @@
 package com.tgbt
 
 import com.tgbt.bot.MessageContext
-import com.tgbt.bot.editor.EditorButtonAction
+import com.tgbt.bot.editor.button.MainMenuHandler
 import com.tgbt.bot.owner.ForcePublishSuggestionsCommand
 import com.tgbt.bot.owner.ForceVKForwardCommand
 import com.tgbt.grammar.exprModule
@@ -9,6 +9,7 @@ import com.tgbt.misc.launchScheduledRoutine
 import com.tgbt.misc.trimToLength
 import com.tgbt.settings.Setting.CHECK_PERIOD_MINUTES
 import com.tgbt.settings.Setting.SUGGESTION_POLLING_DELAY_MINUTES
+import com.tgbt.telegram.TelegramClient
 import com.tgbt.telegram.api.Update
 import com.tgbt.telegram.api.anyText
 import com.tgbt.telegram.api.simpleRef
@@ -76,15 +77,20 @@ fun Application.main() {
                         msgContext.handleUpdate()
                     }
 
-                    update.callbackQuery != null -> {
+                    update.callbackQuery?.message != null -> {
                         logger.info(
                             "Callback (${update.callbackQuery.from.simpleRef})${update.callbackQuery.data} to ${
-                                update.callbackQuery.message?.anyText?.trimToLength(
+                                update.callbackQuery.message.anyText?.trimToLength(
                                     50
                                 )
                             }"
                         )
-                        EditorButtonAction.handleActionCallback(update.callbackQuery)
+                        val notificationText = MainMenuHandler.handle(
+                            update.callbackQuery.message,
+                            update.callbackQuery.from.simpleRef,
+                            update.callbackQuery.data
+                        )
+                        TelegramClient.pingCallbackQuery(update.callbackQuery.id, notificationText)
                     }
 
                     else -> logger.info("Nothing useful, do nothing with this update")
@@ -104,5 +110,9 @@ fun Application.main() {
     }
 
     launchScheduledRoutine(CHECK_PERIOD_MINUTES, "VK Post Forwarding", ForceVKForwardCommand::forwardVkPosts)
-    launchScheduledRoutine(SUGGESTION_POLLING_DELAY_MINUTES, "Suggestions Publishing", ForcePublishSuggestionsCommand::forwardSuggestions)
+    launchScheduledRoutine(
+        SUGGESTION_POLLING_DELAY_MINUTES,
+        "Suggestions Publishing",
+        ForcePublishSuggestionsCommand::forwardSuggestions
+    )
 }
