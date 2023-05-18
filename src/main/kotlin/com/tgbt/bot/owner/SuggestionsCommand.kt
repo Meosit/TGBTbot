@@ -13,7 +13,7 @@ object SuggestionsCommand: BotCommand {
         when (val value = messageText.removePrefix(command)) {
             "" -> TelegramClient.sendChatMessage(chatId, TgTextOutput("Argument expected"), message.id)
             "true", "false" -> {
-                Setting.FORWARDING_ENABLED.save(value)
+                Setting.SUGGESTIONS_ENABLED.save(value)
                 val markdownText = if (value == "true")
                     "Suggestions enabled" else "Suggestions disabled"
                 TelegramClient.sendChatMessage(chatId, TgTextOutput(markdownText), message.id)

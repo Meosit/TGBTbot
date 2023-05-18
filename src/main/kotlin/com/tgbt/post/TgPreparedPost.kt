@@ -16,13 +16,13 @@ data class TgPreparedPost(
     val text: String,
     val maybeImage: String?,
     val footerMarkdown: String = "",
-    val suggestionReference: String = "",
+    val authorSign: String = "",
     val editorComment: String = "",
 ) {
     private val formattedFooter by lazy {
         val compiled =
             (if (editorComment.isBlank()) "" else "\n———\n${editorComment.escapeMarkdown()}\n") +
-                    (if (suggestionReference.isBlank()) "" else "\n${suggestionReference.escapeMarkdown()}") +
+                    (if (authorSign.isBlank()) "" else "\n${authorSign.escapeMarkdown()}") +
                     (if (footerMarkdown.isBlank()) "" else "\n$footerMarkdown")
         if (compiled.isBlank()) "" else "\n$compiled"
     }
@@ -31,12 +31,12 @@ data class TgPreparedPost(
 
     val withImage = """${maybeImage?.let { "[\u200C](${it})" } ?: ""}$withoutImage"""
 
-    val canBeSendAsImageWithCaption = maybeImage != null && withoutImage.length <= 1024
-
-    fun imageUrl() = maybeImage!!
+    private val canBeSendAsImageWithCaption = maybeImage != null && withoutImage.length <= MAX_IMAGE_POST_SIZE
 
     companion object {
         private val logger = LoggerFactory.getLogger("TgPreparedPost")
+        const val MAX_TEXT_POST_SIZE = 4096
+        const val MAX_IMAGE_POST_SIZE = 1024
     }
 
     suspend fun sendTo(
@@ -48,10 +48,10 @@ data class TgPreparedPost(
             canBeSendAsImageWithCaption -> TelegramClient
                 .sendChatPhoto(
                     targetChat,
-                    TgImageOutput(withoutImage, imageUrl(), keyboardJson)
+                    TgImageOutput(withoutImage, maybeImage!!, keyboardJson)
                 ).result
 
-            withImage.length > 4096 -> {
+            withImage.length > MAX_TEXT_POST_SIZE -> {
                 val (ok, error, result) = TelegraphPostCreator.createPost(this)
                 when {
                     ok && result != null -> {

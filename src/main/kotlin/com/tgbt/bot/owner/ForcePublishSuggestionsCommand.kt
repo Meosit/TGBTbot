@@ -4,8 +4,9 @@ import com.tgbt.BotOwnerIds
 import com.tgbt.bot.BotCommand
 import com.tgbt.bot.MessageContext
 import com.tgbt.bot.editor.ForgottenSuggestionsCommand
-import com.tgbt.bot.editor.button.EditorMainMenuHandler
+import com.tgbt.bot.editor.button.EditorSuggestionMenuHandler
 import com.tgbt.bot.user.UserMessages
+import com.tgbt.bot.user.button.UserSuggestionMenuHandler
 import com.tgbt.misc.doNotThrow
 import com.tgbt.misc.escapeMarkdown
 import com.tgbt.post.TgPreparedPost
@@ -51,6 +52,7 @@ object ForcePublishSuggestionsCommand : BotCommand {
             suggestions?.forEach { suggestion ->
                 doNotThrow("Failed to send single suggestion to editors group") {
                     sendPostForReview(suggestion)
+                    UserSuggestionMenuHandler.renderFinishKeyboard(suggestion.authorChatId.toString(), suggestion.authorMessageId, "✅ Пост уже в редакции ✅")
                     forwarded++
                 }
             }
@@ -71,14 +73,14 @@ object ForcePublishSuggestionsCommand : BotCommand {
         }
     }
 
-    suspend fun sendPostForReview(suggestion: UserSuggestion) {
+    suspend fun sendPostForReview(suggestion: UserSuggestion)  {
         val targetChat = Setting.EDITOR_CHAT_ID.str()
         val footerMd = Setting.FOOTER_MD.str()
         val post = TgPreparedPost(
             suggestion.postText, suggestion.imageId, footerMarkdown = footerMd,
-            suggestionReference = suggestion.authorReference(false)
+            authorSign = suggestion.authorReference(false)
         )
-        val editorMessage = post.sendTo(targetChat, EditorMainMenuHandler.rootKeyboard)
+        val editorMessage = post.sendTo(targetChat, EditorSuggestionMenuHandler.rootKeyboard(suggestion))
         if (editorMessage != null) {
             SuggestionStore.update(
                 suggestion.copy(
@@ -104,8 +106,7 @@ object ForcePublishSuggestionsCommand : BotCommand {
                 val anonymous = suggestion.status != SuggestionStatus.SCHEDULE_PUBLICLY
                 val post = TgPreparedPost(
                     suggestion.postText, suggestion.imageId, footerMarkdown = footerMd,
-                    suggestionReference = suggestion
-                        .authorReference(anonymous)
+                    authorSign = suggestion.authorReference(anonymous)
                 )
                 post.sendTo(targetChannel)
                 SuggestionStore.removeByChatAndMessageId(

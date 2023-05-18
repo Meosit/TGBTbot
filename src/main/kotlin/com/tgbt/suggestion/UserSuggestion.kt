@@ -18,7 +18,8 @@ data class UserSuggestion(
     val postText: String,
     val imageId: String? = null,
     val insertedTime: Timestamp = Timestamp.from(Instant.now()),
-    val scheduleTime: Timestamp? = null
+    val scheduleTime: Timestamp? = null,
+    val originallySentAsPhoto: Boolean = false
 )
 
 fun UserSuggestion.authorReference(anonymous: Boolean) =
@@ -35,4 +36,4 @@ fun UserSuggestion.userNewPostSecondsRemaining() = max(0, Setting.USER_SUGGESTIO
 
 fun UserSuggestion.userCanEdit() = userEditSecondsRemaining() > 0
 
-fun UserSuggestion.userCanAddNewPosts() = userNewPostSecondsRemaining() > 0
+fun UserSuggestion.userCanAddNewPosts() = userNewPostSecondsRemaining() <= 0

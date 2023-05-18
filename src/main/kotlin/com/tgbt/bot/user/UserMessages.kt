@@ -5,26 +5,9 @@ import com.tgbt.misc.loadResourceAsString
 object UserMessages {
 
     val helpMessage = loadResourceAsString("user/help.md")
+    val helpBugurtMessage = loadResourceAsString("user/help.bugurt.md")
     val startMessage = loadResourceAsString("user/start.md")
-    val unbannedMessage = loadResourceAsString("user/unbanned.md")
 
-    val postSuggestedMessage = loadResourceAsString("user/post.suggested.md")
-    val postPromotedMessage = loadResourceAsString("user/post.promoted.md")
-    val postDiscardedMessage = loadResourceAsString("user/post.discarded.md")
-    val postDiscardedWithCommentMessage = loadResourceAsString("user/post.discarded.comment.md")
-    val postUpdatedMessage = loadResourceAsString("user/post.updated.md")
-    val postDeletedMessage = loadResourceAsString("user/post.deleted.md")
-    val postPhotoDeletedMessage = loadResourceAsString("user/post.photo.deleted.md")
-    val photoUpdatedAttachmentMessage = loadResourceAsString("user/post.photo.attached.md")
-    val photoUpdatedMessage = loadResourceAsString("user/post.photo.updated.md")
-
-    val bannedErrorMessage = loadResourceAsString("user/error.banned.md")
-    val suggestionsDisabledErrorMessage = loadResourceAsString("user/error.disabled.md")
-    val updateTimeoutErrorMessage = loadResourceAsString("user/error.timeout.md")
-    val invalidPhotoErrorMessage = loadResourceAsString("user/error.invalid.photo.md")
-    val invalidPhotoNoAttachmentErrorMessage = loadResourceAsString("user/error.invalid.photo.attachment.md")
-    val internalErrorMessage = loadResourceAsString("user/error.internal.md")
-    val emptyErrorMessage = loadResourceAsString("user/error.invalid.empty.md")
-    val sizeErrorMessage = loadResourceAsString("user/error.invalid.size.md")
-    val duplicateErrorMessage = loadResourceAsString("user/error.invalid.duplicate.md")
+    val postPromotedMessage = "Твой пост '%s' пробился сквозь предложку! Беги проверять"
+    val bannedErrorMessage = "Ты заблокирован за пост '%s'. Причина: _%s_"
 }

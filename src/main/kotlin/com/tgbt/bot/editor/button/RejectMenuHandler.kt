@@ -1,11 +1,10 @@
 package com.tgbt.bot.editor.button
 
-import com.tgbt.BotJson
 import com.tgbt.bot.BotCommand
 import com.tgbt.bot.MessageContext
 import com.tgbt.bot.button.CallbackButtonHandler
 import com.tgbt.bot.button.CallbackNotificationText
-import com.tgbt.bot.user.UserMessages
+import com.tgbt.bot.user.button.UserSuggestionMenuHandler
 import com.tgbt.misc.escapeMarkdown
 import com.tgbt.misc.simpleFormatTime
 import com.tgbt.misc.trimToLength
@@ -25,14 +24,16 @@ object RejectMenuHandler: CallbackButtonHandler("EDIT", "REJECT"), BotCommand {
     private val logger = LoggerFactory.getLogger(this::class.simpleName)
 
     private const val silentRejectPayload = "silent"
+    private const val customCommentPayload = "custom"
     private val rejectComments = mapOf(
-        silentRejectPayload to null,
+        silentRejectPayload to "❌ Удалить без комментария ❌",
         "ddos" to "Хватит уже это форсить",
         "notfun" to "Не смешно же",
         "endfail" to "Концовка слита",
         "format" to "Оформи нормально и перезалей",
         "fck" to "Пошёл нахуй с такими бугуртами",
         "pic" to "Прикрепи картинку и перезалей",
+        customCommentPayload to "ℹ\uFE0F Свой комментарий ℹ\uFE0F",
     )
 
     override fun isValidPayload(payload: String): Boolean = payload in rejectComments
@@ -41,45 +42,43 @@ object RejectMenuHandler: CallbackButtonHandler("EDIT", "REJECT"), BotCommand {
         message: Message,
         pressedBy: String,
         validPayload: String,
-    ): CallbackNotificationText {
-        return rejectCustomComment(message, pressedBy, rejectComments.getValue(validPayload))
+    ): CallbackNotificationText = when (validPayload) {
+        customCommentPayload -> "Используй команду: /reject <комментарий>"
+        silentRejectPayload -> rejectCustomComment(message, pressedBy, null)
+        else -> rejectCustomComment(message, pressedBy, rejectComments.getValue(validPayload))
     }
 
     private suspend fun rejectCustomComment(message: Message, pressedBy: String, rejectComment: String?): CallbackNotificationText {
-        val suggestion = SuggestionStore.findByChatAndMessageId(message.chat.id, message.id, byAuthor = false)
+        val suggestion = SuggestionStore.findByMessage(message, byAuthor = false)
         return if (suggestion?.editorChatId != null && suggestion.editorMessageId != null) {
             val actuallyDeleted = SuggestionStore.removeByChatAndMessageId(suggestion.editorChatId, suggestion.editorMessageId, byAuthor = false)
             if (actuallyDeleted) {
-                val outputMessage = if (rejectComment != null) {
-                    UserMessages.postDiscardedWithCommentMessage.format(suggestion.postTextTeaser().escapeMarkdown(), rejectComment.escapeMarkdown())
-                } else {
-                    UserMessages.postDiscardedMessage.format(suggestion.postTextTeaser().escapeMarkdown())
-                }
+                val outputMessage = "Пост '${suggestion.postTextTeaser().escapeMarkdown()}' был отклонен редакторами${rejectComment?.let { " с комментарием _${it.escapeMarkdown()}_" } ?: ""}"
                 TelegramClient.sendChatMessage(suggestion.authorChatId.toString(), TgTextOutput(outputMessage))
                 val commentPreview = if (rejectComment != null) " \uD83D\uDCAC $rejectComment" else ""
                 logger.info("Editor $pressedBy rejected post '${suggestion.postTextTeaser()}' from ${suggestion.authorName} with comment '$rejectComment'")
-                val label = "❌ Удалён $pressedBy в ${Instant.now().simpleFormatTime()}$commentPreview ❌"
-                EditorMainMenuHandler.finishInteraction(message, label.trimToLength(512, "…"))
+                val editorLabel = "❌ Удалён $pressedBy в ${Instant.now().simpleFormatTime()}$commentPreview ❌"
+                EditorSuggestionMenuHandler.renderFinishKeyboard(message, editorLabel.trimToLength(512, "…"))
+                val userLabel = "❌ Отклонен$commentPreview ❌"
+                UserSuggestionMenuHandler.renderFinishKeyboard(suggestion.authorChatId.toString(), suggestion.authorMessageId, userLabel.trimToLength(512, "…"))
             } else {
-                EditorMainMenuHandler.finishInteraction(message)
+                EditorSuggestionMenuHandler.renderFinishKeyboard(message)
             }
         } else {
-            EditorMainMenuHandler.finishInteraction(message)
+            EditorSuggestionMenuHandler.renderFinishKeyboard(message)
         }
     }
 
-    override suspend fun renderNewMenu(message: Message, pressedBy: String): CallbackNotificationText {
-        val keyboard = sequence {
+    override suspend fun createHandlerKeyboard(message: Message, pressedBy: String) = sequence {
             rejectComments
-                .map { (key, comment) -> InlineKeyboardButton(if (key == silentRejectPayload) "❌ Удалить без комментария ❌" else "❌ \uD83D\uDCAC \"$comment\" ❌", callbackData(key)) }
+                .map { (key, comment) -> InlineKeyboardButton(
+                    when (key) {
+                        silentRejectPayload, customCommentPayload -> comment
+                        else -> "❌ \uD83D\uDCAC \"$comment\" ❌"
+                    }, callbackData(key)) }
                 .forEach { yield(listOf(it)) }
-            yield(listOf(EditorMainMenuHandler.backButton))
+            yield(listOf(EditorSuggestionMenuHandler.backButton))
         }.toList().let { InlineKeyboardMarkup(it) }
-        val keyboardJson = BotJson.encodeToString(InlineKeyboardMarkup.serializer(), keyboard)
-        TelegramClient.editChatMessageKeyboard(message.chat.id.toString(), message.id, keyboardJson)
-        return null
-    }
-
 
     override val command: String = "/reject "
 

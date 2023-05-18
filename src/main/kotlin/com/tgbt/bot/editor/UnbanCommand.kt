@@ -3,7 +3,6 @@ package com.tgbt.bot.editor
 import com.tgbt.ban.BanStore
 import com.tgbt.bot.BotCommand
 import com.tgbt.bot.MessageContext
-import com.tgbt.bot.user.UserMessages
 import com.tgbt.misc.escapeMarkdown
 import com.tgbt.telegram.TelegramClient
 import com.tgbt.telegram.output.TgTextOutput
@@ -20,7 +19,7 @@ object UnbanCommand : BotCommand {
                     val actuallyUnbanned = BanStore.remove(ban.authorChatId)
                     if (actuallyUnbanned) {
                         TelegramClient.sendChatMessage(chatId, TgTextOutput("Пользователь ${ban.authorName.escapeMarkdown()} разблокирован"))
-                        TelegramClient.sendChatMessage(ban.authorChatId.toString(), TgTextOutput(UserMessages.unbannedMessage))
+                        TelegramClient.sendChatMessage(ban.authorChatId.toString(), TgTextOutput("Возможность предлагать посты была возвращена редакторами"))
                     }
                 } else {
                     TelegramClient.sendChatMessage(chatId, TgTextOutput("По запросу '${nameOrChatId.escapeMarkdown()}' в списке заблокированных никого не найдено"), message.id)

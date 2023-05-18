@@ -1,11 +1,9 @@
 package com.tgbt.bot.button.modify
 
-import com.tgbt.BotJson
 import com.tgbt.bot.BotCommand
 import com.tgbt.bot.MessageContext
 import com.tgbt.bot.button.CallbackNotificationText
 import com.tgbt.misc.isImageUrl
-import com.tgbt.telegram.TelegramClient
 import com.tgbt.telegram.api.InlineKeyboardButton
 import com.tgbt.telegram.api.InlineKeyboardMarkup
 import com.tgbt.telegram.api.Message
@@ -22,40 +20,38 @@ abstract class ModifyImageMenuHandler(
         message: Message,
         pressedBy: String,
         validPayload: String
-    ) = modifyPost(message, searchByAuthor) { it.copy(imageId = imageUrls.getValue(validPayload)) }
-
-    override suspend fun renderNewMenu(message: Message, pressedBy: String): CallbackNotificationText {
-        val keyboard = sequence {
-            val buttons = editComments.map { (key, comment) ->
-                InlineKeyboardButton(comment, callbackData(key))
-            }
-            yield(listOf(buttons[0]))
-            val onlyImages = buttons.drop(1)
-            for (i in onlyImages.indices step 2) {
-                yield((0 until 2).mapNotNull { onlyImages.getOrNull(i + it) })
-            }
-            yield(listOf(retrieveMainMenuHandler().backButton))
-        }.toList().let { InlineKeyboardMarkup(it) }
-        val keyboardJson = BotJson.encodeToString(InlineKeyboardMarkup.serializer(), keyboard)
-        TelegramClient.editChatMessageKeyboard(message.chat.id.toString(), message.id, keyboardJson)
-        return null
+    ): CallbackNotificationText = when (validPayload) {
+        customEditPayload -> "ℹ\uFE0F Cсылка на картинку (.jpg/.jpeg/.png); картинка (если пост короткий)"
+        else -> message.modifyPost(searchByAuthor) { it.copy(imageId = imageUrls.getValue(validPayload)) }
     }
 
-    override val command: String = "/image"
+    override suspend fun createHandlerKeyboard(message: Message, pressedBy: String) = sequence {
+        val buttons = editComments.map { (key, comment) ->
+            InlineKeyboardButton(comment, callbackData(key))
+        }
+        yield(listOf(buttons[0]))
+        yield(listOf(buttons[1]))
+        val onlyImages = buttons.drop(2)
+        for (i in onlyImages.indices step 2) {
+            yield((0 until 2).mapNotNull { onlyImages.getOrNull(i + it) })
+        }
+        yield(listOf(retrieveMainMenuHandler().backButton))
+    }.toList().let { InlineKeyboardMarkup(it) }
+
     override fun canHandle(context: MessageContext): Boolean = with(context) {
-        messageText.startsWith(command) || messageText.isImageUrl() || message.imageId != null
+       !isEdit && replyMessage != null && replyMessage.from?.isBot == true && (messageText.isImageUrl() || message.imageId != null)
     }
 
     override suspend fun MessageContext.handle() {
-        val url = messageText.removePrefix(command)
-        if (replyMessage != null && (url.isImageUrl() || message.imageId != null)) {
-            modifyPost(replyMessage, searchByAuthor) { it.copy(imageId = message.imageId ?: messageText.trim()) }
+        if (replyMessage != null && (messageText.isImageUrl() || message.imageId != null)) {
+            replyMessage.modifyPost(searchByAuthor) { it.copy(imageId = message.imageId ?: messageText.trim()) }
         }
     }
 
     companion object {
 
         private val editComments = mapOf(
+            customEditPayload to "\uD83D\uDCC2 Своя картинка: РЕПЛАЙ НА ПОСТ \uD83D\uDCC2",
             "nopic" to "❌\uD83D\uDDD1 Удалить Картинку \uD83D\uDDD1❌",
             "default" to "\uD83D\uDDBC Дефолтный йоба",
             "laugh" to "\uD83D\uDDBC Смеющийся йоба",
@@ -63,7 +59,6 @@ abstract class ModifyImageMenuHandler(
             "cry" to "\uD83D\uDDBC Слезливый йоба",
             "creep" to "\uD83D\uDDBC Криповый йоба",
             "doom" to "\uD83D\uDDBC Думер йоба",
-            "doom" to "\uD83D\uDDBC Батя йоба",
             "twist" to "\uD83D\uDDBC Скрюченый йоба",
             "respect" to "\uD83D\uDDBC В точку йоба",
         )

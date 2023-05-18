@@ -56,7 +56,7 @@ sealed class PostMenuHandler(id: String, private val postEmoji: String, private 
         pressedBy: String,
         validPayload: String
     ): CallbackNotificationText {
-        val suggestion = SuggestionStore.findByChatAndMessageId(message.chat.id, message.id, byAuthor = false)
+        val suggestion = SuggestionStore.findByMessage(message, byAuthor = false)
         return if (suggestion?.editorChatId != null && suggestion.editorMessageId != null) {
             when (validPayload) {
                 postNowPayload -> {
@@ -64,7 +64,7 @@ sealed class PostMenuHandler(id: String, private val postEmoji: String, private 
                         val channel = Setting.TARGET_CHANNEL.str()
                         val post = TgPreparedPost(
                             suggestion.postText, suggestion.imageId,
-                            suggestionReference = suggestion.authorReference(anonymous)
+                            authorSign = suggestion.authorReference(anonymous)
                         )
                         post.sendTo(channel)
                         SuggestionStore.removeByChatAndMessageId(
@@ -74,20 +74,21 @@ sealed class PostMenuHandler(id: String, private val postEmoji: String, private 
                         )
                         TelegramClient.sendChatMessage(
                             suggestion.authorChatId.toString(),
-                            TgTextOutput(
-                                UserMessages.postPromotedMessage.format(suggestion.postTextTeaser()).escapeMarkdown()
-                            )
+                            TgTextOutput(UserMessages.postPromotedMessage.format(suggestion.postTextTeaser()).escapeMarkdown())
                         )
                         logger.info("Editor $pressedBy promoted post '${suggestion.postTextTeaser()}' from ${suggestion.authorName}")
                         val buttonLabel = "$postEmoji Опубликован $pressedBy в ${Instant.now().simpleFormatTime()} $postEmoji"
-                        EditorMainMenuHandler.finishInteraction(message, buttonLabel)
+                        EditorSuggestionMenuHandler.renderFinishKeyboard(message, buttonLabel)
                     }
                 }
                 cancelSchedulePayload -> {
                     if (suggestion.scheduleTime != null) {
                         val updated = suggestion.copy(scheduleTime = null, status = SuggestionStatus.PENDING_EDITOR_REVIEW)
                         SuggestionStore.update(updated, byAuthor = false)
-                        EditorMainMenuHandler.renderNewMenu(message, pressedBy)
+                        val keyboard = EditorSuggestionMenuHandler.createHandlerKeyboard(message, pressedBy)
+                        val keyboardJson = BotJson.encodeToString(InlineKeyboardMarkup.serializer(), keyboard)
+                        TelegramClient.editChatMessageKeyboard(message.chat.id.toString(), message.id, keyboardJson)
+                        return "↩️ Пост удален из отложенных ↩️"
                     } else {
                         finish(message)
                     }
@@ -106,7 +107,7 @@ sealed class PostMenuHandler(id: String, private val postEmoji: String, private 
                             InlineKeyboardButton("↩️ Отмена действия", callbackData(cancelSchedulePayload))
                         )
                         logger.info("Editor $pressedBy scheduled post '${suggestion.postTextTeaser()}' from ${suggestion.authorName} to $scheduleLabel")
-                        EditorMainMenuHandler.finishInteraction(message, buttonLabel, additionalButtons)
+                        EditorSuggestionMenuHandler.renderFinishKeyboard(message, buttonLabel, additionalButtons)
                     }
                 }
             }
@@ -119,25 +120,20 @@ sealed class PostMenuHandler(id: String, private val postEmoji: String, private 
         val firstButtonLabel = message.replyMarkup?.inlineKeyboard?.getOrNull(0)?.getOrNull(0)?.text
         // handling action on already forwarded via schedule post - removing any action buttons
         return if (firstButtonLabel != null && firstButtonLabel.contains(scheduleEmoji)) {
-            EditorMainMenuHandler.finishInteraction(message, firstButtonLabel.replaceFirst(scheduleEmoji, postEmoji))
+            EditorSuggestionMenuHandler.renderFinishKeyboard(message, firstButtonLabel.replaceFirst(scheduleEmoji, postEmoji))
         } else {
-            EditorMainMenuHandler.finishInteraction(message)
+            EditorSuggestionMenuHandler.renderFinishKeyboard(message)
         }
     }
 
-    override suspend fun renderNewMenu(message: Message, pressedBy: String): CallbackNotificationText {
-        val keyboard = sequence {
-            yield(listOf(InlineKeyboardButton("$postEmoji Отправить сейчас", callbackData(postNowPayload))))
-            val buttons = scheduleDelays.map { (duration, label) ->
-                InlineKeyboardButton("$scheduleEmoji Через $label", callbackData(duration.toMinutes().toString()))
-            }
-            for (i in buttons.indices step 2) {
-                yield((0 until 2).mapNotNull { buttons.getOrNull(it + i) })
-            }
-            yield(listOf(EditorMainMenuHandler.backButton))
-        }.toList().let { InlineKeyboardMarkup(it) }
-        val keyboardJson = BotJson.encodeToString(InlineKeyboardMarkup.serializer(), keyboard)
-        TelegramClient.editChatMessageKeyboard(message.chat.id.toString(), message.id, keyboardJson)
-        return null
-    }
+    override suspend fun createHandlerKeyboard(message: Message, pressedBy: String) = sequence {
+        yield(listOf(InlineKeyboardButton("$postEmoji Отправить сейчас", callbackData(postNowPayload))))
+        val buttons = scheduleDelays.map { (duration, label) ->
+            InlineKeyboardButton("$scheduleEmoji Через $label", callbackData(duration.toMinutes().toString()))
+        }
+        for (i in buttons.indices step 2) {
+            yield((0 until 2).mapNotNull { buttons.getOrNull(it + i) })
+        }
+        yield(listOf(EditorSuggestionMenuHandler.backButton))
+    }.toList().let { InlineKeyboardMarkup(it) }
 }

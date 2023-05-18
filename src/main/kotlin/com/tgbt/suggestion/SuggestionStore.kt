@@ -1,6 +1,7 @@
 package com.tgbt.suggestion
 
 import com.tgbt.store.PostgresConnection
+import com.tgbt.telegram.api.Message
 import com.vladsch.kotlin.jdbc.Row
 import com.vladsch.kotlin.jdbc.sqlQuery
 import java.sql.Timestamp
@@ -29,7 +30,8 @@ object SuggestionStore {
                 suggestion.postText,
                 suggestion.imageId,
                 suggestion.insertedTime,
-                suggestion.scheduleTime
+                suggestion.scheduleTime,
+                suggestion.originallySentAsPhoto,
             )
         )
     }
@@ -49,12 +51,11 @@ object SuggestionStore {
             first(sqlQuery(statement, chatId, messageId)) { row -> row.toUserSuggestion() }
         }
 
+    fun findByMessage(message: Message, byAuthor: Boolean): UserSuggestion? =
+        findByChatAndMessageId(message.chat.id, message.id, byAuthor)
+
     fun findLastByAuthorChatId(chatId: Long): UserSuggestion? = PostgresConnection.inSession {
         first(sqlQuery(SELECT_LAST_BY_CHAT_ID, chatId)) { row -> row.toUserSuggestion() }
-    }
-
-    fun findByAuthorAndPostText(chatId: Long, postText: String): UserSuggestion? = PostgresConnection.inSession {
-        first(sqlQuery(SELECT_BY_CHAT_ID_AND_TEXT, chatId, postText)) { row -> row.toUserSuggestion() }
     }
 
     fun findByStatus(status: SuggestionStatus): List<UserSuggestion> = PostgresConnection.inSession {
@@ -76,6 +77,7 @@ object SuggestionStore {
             suggestion.postText,
             suggestion.imageId,
             suggestion.scheduleTime,
+            suggestion.originallySentAsPhoto,
             if (byAuthor) suggestion.authorChatId else suggestion.editorChatId,
             if (byAuthor) suggestion.authorMessageId else suggestion.editorMessageId
         )
@@ -93,7 +95,8 @@ object SuggestionStore {
         postText = string("post_text"),
         imageId = stringOrNull("image_id"),
         insertedTime = sqlTimestamp("inserted_time"),
-        scheduleTime = sqlTimestampOrNull("schedule_time")
+        scheduleTime = sqlTimestampOrNull("schedule_time"),
+        originallySentAsPhoto = boolean("originally_sent_as_photo"),
     )
 
     private const val CREATE_TABLE_SQL = """
@@ -113,7 +116,8 @@ object SuggestionStore {
 
     private const val ADD_SCHEDULE_TIME_COLUMN = """
         ALTER TABLE IF EXISTS user_suggestions 
-            ADD COLUMN IF NOT EXISTS schedule_time TIMESTAMP DEFAULT NULL
+            ADD COLUMN IF NOT EXISTS schedule_time TIMESTAMP DEFAULT NULL,
+            ADD COLUMN IF NOT EXISTS originally_sent_as_photo BOOLEAN DEFAULT FALSE
     """
 
     private const val INSERT_SQL = """
@@ -128,8 +132,9 @@ object SuggestionStore {
         post_text, 
         image_id, 
         inserted_time,
-        schedule_time
-    ) VALUES (?,?,?,?,?,?,?,?,?,?,?)"""
+        schedule_time,
+        originally_sent_as_photo
+    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)"""
 
     private const val DELETE_ALL_OLDER_THAN =
         """DELETE FROM user_suggestions WHERE inserted_time < NOW() - INTERVAL '<days> days'"""
@@ -137,12 +142,6 @@ object SuggestionStore {
     private const val SELECT_LAST_BY_CHAT_ID = """
         SELECT * FROM user_suggestions 
         WHERE author_chat_id = ? 
-        ORDER BY inserted_time DESC LIMIT 1
-    """
-
-    private const val SELECT_BY_CHAT_ID_AND_TEXT = """
-        SELECT * FROM user_suggestions 
-        WHERE author_chat_id = ? AND post_text = ?
         ORDER BY inserted_time DESC LIMIT 1
     """
 
@@ -170,7 +169,8 @@ object SuggestionStore {
         status = ?,
         post_text = ?,
         image_id = ?,
-        schedule_time = ?
+        schedule_time = ?,
+        originally_sent_as_photo = ?
     WHERE <user>_chat_id = ? AND <user>_message_id = ?
     """
 

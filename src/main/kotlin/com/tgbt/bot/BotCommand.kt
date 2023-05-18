@@ -2,7 +2,7 @@ package com.tgbt.bot
 
 interface BotCommand {
 
-    val command: String
+    val command: String get() = throw IllegalStateException("Command is not overridden but accessed")
 
     fun canHandle(context: MessageContext): Boolean = context.messageText.startsWith(command)
 

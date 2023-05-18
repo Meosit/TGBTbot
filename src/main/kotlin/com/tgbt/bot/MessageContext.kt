@@ -9,13 +9,16 @@ import com.tgbt.bot.editor.button.BanMenuHandler
 import com.tgbt.bot.editor.button.EditorModifyImageMenuHandler
 import com.tgbt.bot.editor.button.RejectMenuHandler
 import com.tgbt.bot.owner.*
-import com.tgbt.bot.user.*
+import com.tgbt.bot.user.AddPostCommand
+import com.tgbt.bot.user.UserHelpCommand
+import com.tgbt.bot.user.UserMessages
+import com.tgbt.bot.user.UserStartCommand
+import com.tgbt.bot.user.button.UserModifyImageMenuHandler
+import com.tgbt.bot.user.button.UserModifyTextMenuHandler
 import com.tgbt.misc.escapeMarkdown
 import com.tgbt.misc.trimToLength
 import com.tgbt.settings.Setting
 import com.tgbt.settings.Setting.EDITOR_CHAT_ID
-import com.tgbt.settings.Setting.SUGGESTIONS_ENABLED
-import com.tgbt.suggestion.SuggestionStore
 import com.tgbt.telegram.TelegramClient
 import com.tgbt.telegram.api.*
 import com.tgbt.telegram.output.TgTextOutput
@@ -75,16 +78,8 @@ data class MessageContext(
             val command = USER_COMMANDS.find { it.canHandle(this) }
             val ban = BanStore.findByChatId(message.chat.id)
             if (ban == null) {
-                command?.handleCommand(this) ?: if (SUGGESTIONS_ENABLED.bool()) {
-                    val suggestion = SuggestionStore.findLastByAuthorChatId(message.chat.id)
-                    if (suggestion == null) {
-                        AddPostCommand.handleCommand(this)
-                    } else {
-                        UpdatePostCommand(suggestion).handleCommand(this)
-                    }
-                } else {
-                    TelegramClient.sendChatMessage(chatId, TgTextOutput(UserMessages.suggestionsDisabledErrorMessage))
-                }
+                command?.handleCommand(this) ?: TelegramClient.sendChatMessage(chatId,
+                    TgTextOutput("Для добавления нового поста нужно подождать, пока можешь отредактировать старый (если еще не вышло время), либо почитать /help"))
             } else {
                 TelegramClient.sendChatMessage(
                     chatId, TgTextOutput(UserMessages.bannedErrorMessage
@@ -142,7 +137,10 @@ data class MessageContext(
         private val USER_COMMANDS: List<BotCommand> = listOf(
             UserHelpCommand,
             UserStartCommand,
-            OwnerAsUserCommand
+            OwnerAsUserCommand,
+            UserModifyImageMenuHandler,
+            UserModifyTextMenuHandler,
+            AddPostCommand,
         )
 
         private val EDITOR_COMMANDS: List<BotCommand> = listOf(
