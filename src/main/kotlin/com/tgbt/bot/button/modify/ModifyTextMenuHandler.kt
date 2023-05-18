@@ -65,10 +65,11 @@ abstract class ModifyTextMenuHandler(
     companion object {
         private val lowercaseBugurtPartsRegex = "#[a-zа-я_]+|\\*.*?\\*|<.*?>".toRegex(RegexOption.IGNORE_CASE)
         private val malformedBugurtRegex = "(@\\n?)?([^@\\n]+\\n?(@\\s*\\n?)+)+[^@\\n]+(\\n?@)?".toRegex(RegexOption.MULTILINE)
-        private val validBugurtRegex = """(^([^@a-zа-я\n][^a-zа-я\n]+|#[a-zа-я_]+|[*<][^\n]*?[*>]|)+${'$'})(\n@\s*?\n(^([^@a-zа-я\n][^a-zа-я\n]+|#[a-zа-я_]+|[*<][^\n]*?[*>]|)+${'$'}))*""".toRegex(RegexOption.MULTILINE)
+        private const val bugurtLine = """^(?:[^@a-zа-я\n]|#[a-zа-я_]+?|[<*][^\n@*>]*[*>])+${'$'}"""
+        private val validBugurtRegex = """$bugurtLine(?:\n@\s*?\n$bugurtLine)+""".toRegex(RegexOption.MULTILINE)
         private const val infoPayload = "info"
 
-        fun isValidBugurt(bugurt: String): Boolean = validBugurtRegex.matches(bugurt)
+        fun isValidBugurt(bugurt: String): Boolean = validBugurtRegex.matches(bugurt.trim())
 
         private val editComments = mapOf(
             customEditPayload to "\uD83D\uDCDD Изменить текст вручную \uD83D\uDCDD",

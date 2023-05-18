@@ -11,7 +11,7 @@ import com.tgbt.telegram.api.toMarkup
 abstract class SuggestionMenuHandler(category: String, val searchByAuthor: Boolean): CallbackButtonHandler(category, "MAIN") {
 
     protected abstract val buttonToHandler: Map<String, CallbackButtonHandler>
-    abstract fun rootKeyboard(suggestion: UserSuggestion): InlineKeyboardMarkup
+    abstract suspend fun rootKeyboard(suggestion: UserSuggestion): InlineKeyboardMarkup
 
     private val finishPayload = "done"
     private val backPayload = "back"
@@ -30,7 +30,9 @@ abstract class SuggestionMenuHandler(category: String, val searchByAuthor: Boole
                 menuHandler.createHandlerKeyboard(message, pressedBy)
             }
         }
+        println("Root keyboard generated")
         val keyboardJson = BotJson.encodeToString(InlineKeyboardMarkup.serializer(), keyboard)
+        println("Keyboard serialized")
         TelegramClient.editChatMessageKeyboard(message.chat.id.toString(), message.id, keyboardJson)
         return null
     }

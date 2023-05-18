@@ -34,10 +34,12 @@ abstract class CallbackButtonHandler(category: String, id: String) {
     abstract suspend fun createHandlerKeyboard(message: Message, pressedBy: String): InlineKeyboardMarkup
 
     protected open suspend fun handle(message: Message, pressedBy: String, data: String?): CallbackNotificationText {
-        logger.info("Inline '$data' by $pressedBy <- ${message.verboseLogReference}")
+        logger.info("Inline '$data' by $pressedBy for message ${message.chat.id}:${message.id} <- ${message.verboseLogReference}")
         val payload = data?.trimPrefix()
         return if (payload != null && isValidPayload(payload)) {
-                handleButtonAction(message, pressedBy, payload)
+                val notification = handleButtonAction(message, pressedBy, payload)
+                logger.info("Inline '$data' successfully handled with response '$notification'")
+                notification
             } else {
                 throw IllegalStateException("Invalid payload '$data' supplied from ${message.verboseLogReference}")
             }

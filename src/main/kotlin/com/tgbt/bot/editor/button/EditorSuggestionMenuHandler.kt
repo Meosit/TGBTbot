@@ -19,7 +19,7 @@ object EditorSuggestionMenuHandler: SuggestionMenuHandler("EDIT", searchByAuthor
         "deanon" to PostMenuHandler.PostPubliclyMenuHandler,
     )
 
-    override fun rootKeyboard(suggestion: UserSuggestion): InlineKeyboardMarkup {
+    override suspend fun rootKeyboard(suggestion: UserSuggestion): InlineKeyboardMarkup {
         val imageEmoji = suggestion.imageId?.let { "✅" } ?: "⚠\uFE0F"
         val textEmoji = if (ModifyTextMenuHandler.isValidBugurt(suggestion.postText)) "✅" else "⚠\uFE0F"
         return InlineKeyboardMarkup(listOf(
