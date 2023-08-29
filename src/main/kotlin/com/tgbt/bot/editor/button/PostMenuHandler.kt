@@ -4,9 +4,11 @@ import com.tgbt.BotJson
 import com.tgbt.bot.button.CallbackButtonHandler
 import com.tgbt.bot.button.CallbackNotificationText
 import com.tgbt.bot.user.UserMessages
+import com.tgbt.bot.user.button.UserSuggestionMenuHandler
 import com.tgbt.misc.doNotThrow
 import com.tgbt.misc.escapeMarkdown
 import com.tgbt.misc.simpleFormatTime
+import com.tgbt.misc.trimToLength
 import com.tgbt.post.TgPreparedPost
 import com.tgbt.settings.Setting
 import com.tgbt.suggestion.SuggestionStatus
@@ -79,6 +81,8 @@ sealed class PostMenuHandler(id: String, private val postEmoji: String, private 
                         logger.info("Editor $pressedBy promoted post '${suggestion.postTextTeaser()}' from ${suggestion.authorName}")
                         val buttonLabel = "$postEmoji Опубликован $pressedBy в ${Instant.now().simpleFormatTime()} $postEmoji"
                         EditorSuggestionMenuHandler.renderFinishKeyboard(message, buttonLabel)
+                        val userLabel = "$postEmoji Опубликован в ${Instant.now().simpleFormatTime()} $postEmoji"
+                        UserSuggestionMenuHandler.renderFinishKeyboard(suggestion.authorChatId.toString(), suggestion.authorMessageId, userLabel.trimToLength(512, "…"))
                     }
                 }
                 cancelSchedulePayload -> {
@@ -88,7 +92,11 @@ sealed class PostMenuHandler(id: String, private val postEmoji: String, private 
                         val keyboard = EditorSuggestionMenuHandler.createHandlerKeyboard(message, pressedBy)
                         val keyboardJson = BotJson.encodeToString(InlineKeyboardMarkup.serializer(), keyboard)
                         TelegramClient.editChatMessageKeyboard(message.chat.id.toString(), message.id, keyboardJson)
-                        return "↩️ Пост удален из отложенных ↩️"
+                        val label = "↩️ Пост удален из отложенных ↩️"
+                        doNotThrow("Failed to update user cancelled suggestion status") {
+                            UserSuggestionMenuHandler.renderFinishKeyboard(suggestion.authorChatId.toString(), suggestion.authorMessageId, label.trimToLength(512, "…"))
+                        }
+                        return label
                     } else {
                         finish(message)
                     }
@@ -101,13 +109,15 @@ sealed class PostMenuHandler(id: String, private val postEmoji: String, private 
                         val updated = suggestion.copy(scheduleTime = Timestamp.from(scheduleInstant), status = status)
                         SuggestionStore.update(updated, byAuthor = false)
                         val scheduleLabel = scheduleInstant.simpleFormatTime()
-                        val buttonLabel = "$scheduleEmoji Отложен $pressedBy на ≈$scheduleLabel $scheduleEmoji"
+                        val editorLabel = "$scheduleEmoji Отложен $pressedBy на ≈$scheduleLabel $scheduleEmoji"
                         val additionalButtons = listOf(
                             InlineKeyboardButton("$postEmoji Прямо сейчас", callbackData(postNowPayload)),
                             InlineKeyboardButton("↩️ Отмена действия", callbackData(cancelSchedulePayload))
                         )
                         logger.info("Editor $pressedBy scheduled post '${suggestion.postTextTeaser()}' from ${suggestion.authorName} to $scheduleLabel")
-                        EditorSuggestionMenuHandler.renderFinishKeyboard(message, buttonLabel, additionalButtons)
+                        EditorSuggestionMenuHandler.renderFinishKeyboard(message, editorLabel, additionalButtons)
+                        val userLabel = "$scheduleEmoji Отложен на ≈$scheduleLabel $scheduleEmoji"
+                        UserSuggestionMenuHandler.renderFinishKeyboard(suggestion.authorChatId.toString(), suggestion.authorMessageId, userLabel.trimToLength(512, "…"))
                     }
                 }
             }

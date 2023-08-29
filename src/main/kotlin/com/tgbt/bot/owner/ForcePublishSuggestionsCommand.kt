@@ -9,6 +9,7 @@ import com.tgbt.bot.user.UserMessages
 import com.tgbt.bot.user.button.UserSuggestionMenuHandler
 import com.tgbt.misc.doNotThrow
 import com.tgbt.misc.escapeMarkdown
+import com.tgbt.misc.simpleFormatTime
 import com.tgbt.post.TgPreparedPost
 import com.tgbt.settings.Setting
 import com.tgbt.suggestion.*
@@ -123,6 +124,8 @@ object ForcePublishSuggestionsCommand : BotCommand {
                         )
                     )
                 )
+                val userLabel = "✅ Опубликован в ${Instant.now().simpleFormatTime()} ✅"
+                UserSuggestionMenuHandler.renderFinishKeyboard(suggestion.authorChatId.toString(), suggestion.authorMessageId, userLabel)
                 logger.info("Posted scheduled post '${suggestion.postTextTeaser()}' from ${suggestion.authorName}")
             }
         }
