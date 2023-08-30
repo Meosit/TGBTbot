@@ -16,6 +16,7 @@ import java.util.concurrent.TimeUnit
 val logger: Logger = LoggerFactory.getLogger("HelpersKt")
 val editorsVkNotificationLabel: List<String> = listOf(
     "Connect timeout has expired",
+    "Socket timeout has expired",
     "502 Bad Gateway",
     "Internal server error",
     "api.vk.com: Name or service not known"
@@ -35,11 +36,11 @@ suspend inline fun <T> doNotThrow(message: String, block: () -> T?): T? = try {
     val output = TgTextOutput(markdownText)
     BotOwnerIds.forEach { TelegramClient.sendChatMessage(it, output) }
 
-    if ("Failed to load or parse VK posts" in markdownText) {
-        val label = editorsVkNotificationLabel.find { it in markdownText }
+    if ("Failed to load or parse VK posts" in message) {
+        val label = editorsVkNotificationLabel.find { it in clientError }
         if (label != null) {
             TelegramClient.sendChatMessage(Setting.EDITOR_CHAT_ID.str(),
-                TgTextOutput("VK Forwarding has failed, reason: $label")
+                TgTextOutput("⚠\uFE0F VK Forwarding has failed ⚠\uFE0F\nReason: '$label'")
             )
         }
     }
