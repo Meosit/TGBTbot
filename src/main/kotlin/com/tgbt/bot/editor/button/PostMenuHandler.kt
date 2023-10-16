@@ -1,14 +1,13 @@
 package com.tgbt.bot.editor.button
 
 import com.tgbt.BotJson
+import com.tgbt.bot.BotCommand
+import com.tgbt.bot.MessageContext
 import com.tgbt.bot.button.CallbackButtonHandler
 import com.tgbt.bot.button.CallbackNotificationText
 import com.tgbt.bot.user.UserMessages
 import com.tgbt.bot.user.button.UserSuggestionMenuHandler
-import com.tgbt.misc.doNotThrow
-import com.tgbt.misc.escapeMarkdown
-import com.tgbt.misc.simpleFormatTime
-import com.tgbt.misc.trimToLength
+import com.tgbt.misc.*
 import com.tgbt.post.TgPreparedPost
 import com.tgbt.settings.Setting
 import com.tgbt.suggestion.SuggestionStatus
@@ -19,14 +18,17 @@ import com.tgbt.telegram.TelegramClient
 import com.tgbt.telegram.api.InlineKeyboardButton
 import com.tgbt.telegram.api.InlineKeyboardMarkup
 import com.tgbt.telegram.api.Message
+import com.tgbt.telegram.api.simpleRef
 import com.tgbt.telegram.output.TgTextOutput
 import org.slf4j.LoggerFactory
 import java.sql.Timestamp
 import java.time.Duration
 import java.time.Instant
+import java.time.LocalTime
+import java.time.format.DateTimeParseException
 
 sealed class PostMenuHandler(id: String, private val postEmoji: String, private val anonymous: Boolean) :
-    CallbackButtonHandler("EDIT", id) {
+    CallbackButtonHandler("EDIT", id), BotCommand {
 
     private val logger = LoggerFactory.getLogger(this::class.simpleName)
 
@@ -103,7 +105,7 @@ sealed class PostMenuHandler(id: String, private val postEmoji: String, private 
                 }
                 else -> {
                     doNotThrow("Failed to schedule suggestion") {
-                        val duration = Duration.ofMinutes(validPayload.toLong())
+                        val duration = Duration.ofMinutes(validPayload.toLong() + 1)
                         val status = if (anonymous) SuggestionStatus.SCHEDULE_ANONYMOUSLY else SuggestionStatus.SCHEDULE_PUBLICLY
                         val scheduleInstant = Instant.now().plus(duration)
                         val updated = suggestion.copy(scheduleTime = Timestamp.from(scheduleInstant), status = status)
@@ -146,4 +148,27 @@ sealed class PostMenuHandler(id: String, private val postEmoji: String, private 
         }
         yield(listOf(EditorSuggestionMenuHandler.backButton))
     }.toList().let { InlineKeyboardMarkup(it) }
+
+    override val command: String = "/schedule"
+
+    override suspend fun MessageContext.handle() {
+        if (replyMessage == null) return
+        val payload = messageText.removePrefix(command).trim()
+        when {
+            payload.matches("""\d\d:\d\d(\+\d+)?""".toRegex()) -> {
+                val additionalDays = payload.drop(6).ifEmpty { "0" }.toLong()
+                try {
+                    val targetTime = LocalTime.parse(payload.take(5))
+                    val target = zonedNow().let { t ->
+                        t.plusDays(additionalDays + (if (t.toLocalTime().isBefore(targetTime)) 0 else 1)).with(targetTime)
+                    }.toInstant()
+                    val delay = Duration.between(Instant.now(), target).abs().toMinutes().toString()
+                    handleButtonAction(replyMessage, message.from.simpleRef, delay)
+                } catch (e: DateTimeParseException) {
+                    TelegramClient.sendChatMessage(chatId, TgTextOutput("По формату, но на самом деле это не значение времени"), message.id)
+                }
+            }
+            else -> TelegramClient.sendChatMessage(chatId, TgTextOutput("Формат времени `HH:MM[+X]`, например `12:30`, `22:30+1`"), message.id)
+        }
+    }
 }

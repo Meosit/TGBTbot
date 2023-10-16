@@ -7,6 +7,7 @@ import com.tgbt.bot.editor.ForgottenSuggestionsCommand
 import com.tgbt.bot.editor.UnbanCommand
 import com.tgbt.bot.editor.button.BanMenuHandler
 import com.tgbt.bot.editor.button.EditorModifyImageMenuHandler
+import com.tgbt.bot.editor.button.PostMenuHandler
 import com.tgbt.bot.editor.button.RejectMenuHandler
 import com.tgbt.bot.owner.*
 import com.tgbt.bot.user.AddPostCommand
@@ -150,6 +151,7 @@ data class MessageContext(
             ForceVKForwardCommand,
             BanMenuHandler,
             RejectMenuHandler,
+            PostMenuHandler.PostAnonymouslyMenuHandler,
             EditorModifyImageMenuHandler
         )
     }

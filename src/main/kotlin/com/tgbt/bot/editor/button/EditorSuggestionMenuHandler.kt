@@ -1,5 +1,6 @@
 package com.tgbt.bot.editor.button
 
+import com.tgbt.bot.button.CallbackButtonHandler
 import com.tgbt.bot.button.SuggestionMenuHandler
 import com.tgbt.bot.button.modify.ModifyImageMenuHandler
 import com.tgbt.bot.button.modify.ModifyTextMenuHandler
@@ -10,7 +11,7 @@ import com.tgbt.telegram.api.InlineKeyboardMarkup
 
 object EditorSuggestionMenuHandler: SuggestionMenuHandler("EDIT", searchByAuthor = false) {
 
-    override val buttonToHandler = mapOf(
+    override val buttonToHandler: Map<String, CallbackButtonHandler> = mapOf(
         "edit_images" to EditorModifyImageMenuHandler,
         "edit_text" to EditorModifyTextMenuHandler,
         "reject" to RejectMenuHandler,
