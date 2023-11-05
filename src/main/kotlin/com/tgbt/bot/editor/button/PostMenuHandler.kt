@@ -1,6 +1,5 @@
 package com.tgbt.bot.editor.button
 
-import com.tgbt.BotJson
 import com.tgbt.bot.BotCommand
 import com.tgbt.bot.MessageContext
 import com.tgbt.bot.button.CallbackButtonHandler
@@ -15,10 +14,7 @@ import com.tgbt.suggestion.SuggestionStore
 import com.tgbt.suggestion.authorReference
 import com.tgbt.suggestion.postTextTeaser
 import com.tgbt.telegram.TelegramClient
-import com.tgbt.telegram.api.InlineKeyboardButton
-import com.tgbt.telegram.api.InlineKeyboardMarkup
-import com.tgbt.telegram.api.Message
-import com.tgbt.telegram.api.simpleRef
+import com.tgbt.telegram.api.*
 import com.tgbt.telegram.output.TgTextOutput
 import org.slf4j.LoggerFactory
 import java.sql.Timestamp
@@ -92,8 +88,7 @@ sealed class PostMenuHandler(id: String, private val postEmoji: String, private 
                         val updated = suggestion.copy(scheduleTime = null, status = SuggestionStatus.PENDING_EDITOR_REVIEW)
                         SuggestionStore.update(updated, byAuthor = false)
                         val keyboard = EditorSuggestionMenuHandler.createHandlerKeyboard(message, pressedBy)
-                        val keyboardJson = BotJson.encodeToString(InlineKeyboardMarkup.serializer(), keyboard)
-                        TelegramClient.editChatMessageKeyboard(message.chat.id.toString(), message.id, keyboardJson)
+                        TelegramClient.editChatMessageKeyboard(message.chat.id.toString(), message.id, keyboard.toJson())
                         val label = "↩️ Пост удален из отложенных ↩️"
                         doNotThrow("Failed to update user cancelled suggestion status") {
                             UserSuggestionMenuHandler.renderFinishKeyboard(suggestion.authorChatId.toString(), suggestion.authorMessageId, label.trimToLength(512, "…"))

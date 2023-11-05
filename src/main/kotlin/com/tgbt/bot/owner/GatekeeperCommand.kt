@@ -8,10 +8,10 @@ import com.tgbt.telegram.output.TgTextOutput
 
 
 object GatekeeperCommand : BotCommand {
-    override val command = "/gatekeeper "
+    override val command = "/gatekeeper"
 
     override suspend fun MessageContext.handle() {
-        val value = messageText.removePrefix(command)
+        val value = messageText.removePrefix(command).trim()
         Setting.GATEKEEPER.save(value)
         val md = "Gatekeeper '$value' would be shown as ban-related contact"
         TelegramClient.sendChatMessage(chatId, TgTextOutput(md), message.id)

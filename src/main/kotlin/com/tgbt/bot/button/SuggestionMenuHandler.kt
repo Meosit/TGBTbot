@@ -1,12 +1,8 @@
 package com.tgbt.bot.button
-import com.tgbt.BotJson
 import com.tgbt.suggestion.SuggestionStore
 import com.tgbt.suggestion.UserSuggestion
 import com.tgbt.telegram.TelegramClient
-import com.tgbt.telegram.api.InlineKeyboardButton
-import com.tgbt.telegram.api.InlineKeyboardMarkup
-import com.tgbt.telegram.api.Message
-import com.tgbt.telegram.api.toMarkup
+import com.tgbt.telegram.api.*
 
 abstract class SuggestionMenuHandler(category: String, val searchByAuthor: Boolean): CallbackButtonHandler(category, "MAIN") {
 
@@ -30,10 +26,7 @@ abstract class SuggestionMenuHandler(category: String, val searchByAuthor: Boole
                 menuHandler.createHandlerKeyboard(message, pressedBy)
             }
         }
-        println("Root keyboard generated")
-        val keyboardJson = BotJson.encodeToString(InlineKeyboardMarkup.serializer(), keyboard)
-        println("Keyboard serialized")
-        TelegramClient.editChatMessageKeyboard(message.chat.id.toString(), message.id, keyboardJson)
+        TelegramClient.editChatMessageKeyboard(message.chat.id.toString(), message.id, keyboard.toJson())
         return null
     }
 
@@ -65,8 +58,7 @@ abstract class SuggestionMenuHandler(category: String, val searchByAuthor: Boole
         label: String = notFoundFinishLabel,
         optionalActions: List<InlineKeyboardButton>? = null
     ): CallbackNotificationText {
-        val keyboardJson = BotJson.encodeToString(InlineKeyboardMarkup.serializer(), createFinishKeyboard(label, optionalActions))
-        TelegramClient.editChatMessageKeyboard(chatId, messageId, keyboardJson)
+        TelegramClient.editChatMessageKeyboard(chatId, messageId, createFinishKeyboard(label, optionalActions).toJson())
         return label
     }
 

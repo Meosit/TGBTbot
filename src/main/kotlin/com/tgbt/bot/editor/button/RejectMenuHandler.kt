@@ -80,7 +80,7 @@ object RejectMenuHandler: CallbackButtonHandler("EDIT", "REJECT"), BotCommand {
             yield(listOf(EditorSuggestionMenuHandler.backButton))
         }.toList().let { InlineKeyboardMarkup(it) }
 
-    override val command: String = "/reject "
+    override val command: String = "/reject"
 
     override suspend fun MessageContext.handle() {
         if (replyMessage == null) return

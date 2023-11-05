@@ -1,6 +1,5 @@
 package com.tgbt.post
 
-import com.tgbt.BotJson
 import com.tgbt.BotOwnerIds
 import com.tgbt.misc.escapeMarkdown
 import com.tgbt.misc.isImageUrl
@@ -8,6 +7,7 @@ import com.tgbt.telegram.TelegramClient
 import com.tgbt.telegram.TelegraphPostCreator
 import com.tgbt.telegram.api.InlineKeyboardMarkup
 import com.tgbt.telegram.api.Message
+import com.tgbt.telegram.api.toJson
 import com.tgbt.telegram.output.TgImageOutput
 import com.tgbt.telegram.output.TgTextOutput
 import org.slf4j.LoggerFactory
@@ -43,12 +43,11 @@ data class TgPreparedPost(
         targetChat: String,
         keyboardMarkup: InlineKeyboardMarkup? = null
     ): Message? {
-        val keyboardJson = keyboardMarkup?.let { BotJson.encodeToString(InlineKeyboardMarkup.serializer(), keyboardMarkup) }
         return when {
             canBeSendAsImageWithCaption -> TelegramClient
                 .sendChatPhoto(
                     targetChat,
-                    TgImageOutput(withoutImage, maybeImage!!, keyboardJson)
+                    TgImageOutput(withoutImage, maybeImage!!, keyboardMarkup?.toJson())
                 ).result
 
             withImage.length > MAX_TEXT_POST_SIZE -> {
@@ -57,7 +56,7 @@ data class TgPreparedPost(
                     ok && result != null -> {
                         val output = TgTextOutput(
                             "Слишком длиннобугурт, поэтому читайте в телеграфе: [${result.title}](${result.url})${formattedFooter}",
-                            keyboardJson
+                            keyboardMarkup?.toJson()
                         )
                         TelegramClient.sendChatMessage(targetChat, output, disableLinkPreview = false).result
                     }
@@ -79,7 +78,7 @@ data class TgPreparedPost(
                         && !(maybeImage?.isImageUrl() ?: false)
                 TelegramClient.sendChatMessage(
                     targetChat,
-                    TgTextOutput(withImage, keyboardJson),
+                    TgTextOutput(withImage, keyboardMarkup?.toJson()),
                     disableLinkPreview = disableLinkPreview
                 ).result
             }

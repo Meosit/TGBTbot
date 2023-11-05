@@ -5,6 +5,8 @@ import com.tgbt.bot.button.CallbackButtonHandler
 import com.tgbt.bot.owner.ForcePublishSuggestionsCommand
 import com.tgbt.bot.owner.ForceVKForwardCommand
 import com.tgbt.grammar.exprModule
+import com.tgbt.misc.doNotThrow
+import com.tgbt.misc.escapeMarkdown
 import com.tgbt.misc.launchScheduledRoutine
 import com.tgbt.misc.teaserString
 import com.tgbt.settings.Setting.CHECK_PERIOD_MINUTES
@@ -83,8 +85,10 @@ fun Application.main() {
                                 update.callbackQuery.message.anyText?.teaserString()
                             }"
                         )
-                        val notificationText = CallbackButtonHandler.handle(update.callbackQuery)
-                        TelegramClient.pingCallbackQuery(update.callbackQuery.id, notificationText)
+                        doNotThrow("Failed to handle callback query `${update.callbackQuery.data?.escapeMarkdown() ?: "none"}`") {
+                            val notificationText = CallbackButtonHandler.handle(update.callbackQuery)
+                            TelegramClient.pingCallbackQuery(update.callbackQuery.id, notificationText)
+                        }
                     }
 
                     else -> logger.info("Nothing useful, do nothing with this update")

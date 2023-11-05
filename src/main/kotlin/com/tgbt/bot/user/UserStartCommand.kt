@@ -11,7 +11,6 @@ object UserStartCommand: BotCommand {
     override val command: String = "/start"
 
     override suspend fun MessageContext.handle() {
-        TelegramClient
-            .sendChatMessage(chatId, TgTextOutput(startMessage.format(Setting.GATEKEEPER.str())))
+        TelegramClient.sendChatMessage(chatId, TgTextOutput(startMessage.format(Setting.GATEKEEPER.str())))
     }
 }

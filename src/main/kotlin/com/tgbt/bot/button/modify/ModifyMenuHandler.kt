@@ -1,6 +1,5 @@
 package com.tgbt.bot.button.modify
 
-import com.tgbt.BotJson
 import com.tgbt.bot.button.CallbackButtonHandler
 import com.tgbt.bot.button.CallbackNotificationText
 import com.tgbt.bot.button.SuggestionMenuHandler
@@ -14,8 +13,8 @@ import com.tgbt.suggestion.UserSuggestion
 import com.tgbt.suggestion.authorReference
 import com.tgbt.suggestion.userCanEdit
 import com.tgbt.telegram.TelegramClient
-import com.tgbt.telegram.api.InlineKeyboardMarkup
 import com.tgbt.telegram.api.Message
+import com.tgbt.telegram.api.toJson
 import com.tgbt.telegram.output.TgTextOutput
 
 abstract class ModifyMenuHandler(category: String, id: String): CallbackButtonHandler(category, id) {
@@ -51,7 +50,7 @@ abstract class ModifyMenuHandler(category: String, id: String): CallbackButtonHa
 
 
         val updated = action(suggestion)
-        val keyboardJson = BotJson.encodeToString(InlineKeyboardMarkup.serializer(), retrieveMainMenuHandler().rootKeyboard(updated))
+        val keyboardJson = retrieveMainMenuHandler().rootKeyboard(updated).toJson()
 
         if (byAuthor && !suggestion.userCanEdit()) {
             TelegramClient.editChatMessageKeyboard(chatId, messageId, keyboardJson)

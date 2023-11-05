@@ -8,7 +8,7 @@ import com.tgbt.telegram.TelegramClient
 import com.tgbt.telegram.output.TgTextOutput
 
 object UnbanCommand : BotCommand {
-    override val command: String = "/unban "
+    override val command: String = "/unban"
 
     override suspend fun MessageContext.handle() {
         when (val nameOrChatId = messageText.removePrefix(command).trim()) {

@@ -1,5 +1,6 @@
 package com.tgbt.telegram.api
 
+import com.tgbt.BotJson
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -15,3 +16,6 @@ data class InlineKeyboardButton(
 )
 
 fun InlineKeyboardButton.toMarkup() = InlineKeyboardMarkup(listOf(listOf(this)))
+
+
+fun InlineKeyboardMarkup.toJson() = BotJson.encodeToString(InlineKeyboardMarkup.serializer(), this)

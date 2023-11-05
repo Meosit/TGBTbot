@@ -25,13 +25,16 @@ val editorsVkNotificationLabel: List<String> = listOf(
 suspend inline fun <T> doNotThrow(message: String, block: () -> T?): T? = try {
     block()
 } catch (e: Exception) {
+    val stackPart = e.stackTraceToString().lineSequence()
+        .filter { it.contains("com.tgbt") }.map { it.trim().escapeMarkdown() }.toList().takeLast(5)
+        .joinToString("\n").ifBlank {
+            logger.warn("NO BOT CODEBASE found in stacktrace:\n${e.stackTraceToString()}")
+            "no bot codebase found"
+        }
     val response = (e as? ClientRequestException)?.response
-    val clientError = (response?.bodyAsText() ?: e.message)?.ifBlank { "none" }?.escapeMarkdown() ?: "none"
-    val textParameter =
-        (response?.let { it.request.url.parameters["text"].orEmpty() }.orEmpty()).trimToLength(400, "|<- truncated")
-            .ifBlank { "none" }.escapeMarkdown()
+    val clientError = (response?.bodyAsText()?.ifBlank { "none" } ?: "[exp] ${e.message}").escapeMarkdown()
     val markdownText =
-        "$message, please check logs, error message:\n`$clientError`\n\nText parameter (first 400 chars): `$textParameter`\n\n"
+        "$message, please check logs, error message:\n`$clientError`\n\nStackTrace part:\n$stackPart"
     logger.error(markdownText, e)
     val output = TgTextOutput(markdownText)
     BotOwnerIds.forEach { TelegramClient.sendChatMessage(it, output) }
