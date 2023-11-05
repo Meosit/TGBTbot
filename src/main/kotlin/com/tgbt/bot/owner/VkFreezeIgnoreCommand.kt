@@ -7,10 +7,10 @@ import com.tgbt.telegram.TelegramClient
 import com.tgbt.telegram.output.TgTextOutput
 
 object VkFreezeIgnoreCommand : BotCommand {
-    override val command = "/vk_freeze_ignore "
+    override val command = "/vk_freeze_ignore"
 
     override suspend fun MessageContext.handle() {
-        val value = messageText.removePrefix(command)
+        val value = messageText.removePrefix(command).trim()
         when {
             value == "" -> TelegramClient.sendChatMessage(chatId, TgTextOutput("Argument expected"), message.id)
             value == "disable" -> {

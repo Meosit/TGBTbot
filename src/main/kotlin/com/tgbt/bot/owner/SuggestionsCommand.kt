@@ -7,10 +7,10 @@ import com.tgbt.telegram.TelegramClient
 import com.tgbt.telegram.output.TgTextOutput
 
 object SuggestionsCommand: BotCommand {
-    override val command = "/suggestions "
+    override val command = "/suggestions"
 
     override suspend fun MessageContext.handle() {
-        when (val value = messageText.removePrefix(command)) {
+        when (val value = messageText.removePrefix(command).trim()) {
             "" -> TelegramClient.sendChatMessage(chatId, TgTextOutput("Argument expected"), message.id)
             "true", "false" -> {
                 Setting.SUGGESTIONS_ENABLED.save(value)

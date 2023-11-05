@@ -9,7 +9,7 @@ import com.tgbt.telegram.output.TgTextOutput
 
 
 object VkFreezeMentionsCommand : BotCommand {
-    override val command = "/vk_freeze_mentions "
+    override val command = "/vk_freeze_mentions"
 
     override suspend fun MessageContext.handle() {
         val value = messageText.removePrefix(command).escapeMarkdown()

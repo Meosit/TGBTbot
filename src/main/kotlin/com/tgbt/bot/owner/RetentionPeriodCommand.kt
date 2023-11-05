@@ -7,10 +7,10 @@ import com.tgbt.telegram.TelegramClient
 import com.tgbt.telegram.output.TgTextOutput
 
 object RetentionPeriodCommand : BotCommand {
-    override val command = "/retention "
+    override val command = "/retention"
 
     override suspend fun MessageContext.handle() {
-        when (val value = messageText.removePrefix(command)) {
+        when (val value = messageText.removePrefix(command).trim()) {
             "" -> TelegramClient.sendChatMessage(chatId, TgTextOutput("Argument expected"), message.id)
             else -> {
                 val markdownText = if (value.toIntOrNull() != null) {

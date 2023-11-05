@@ -7,10 +7,10 @@ import com.tgbt.telegram.TelegramClient
 import com.tgbt.telegram.output.TgTextOutput
 
 object SuggestionsCleanCommand: BotCommand {
-    override val command = "/clean_old_suggestions "
+    override val command = "/clean_old_suggestions"
 
     override suspend fun MessageContext.handle() {
-        when (val value = messageText.removePrefix(command)) {
+        when (val value = messageText.removePrefix(command).trim()) {
             "" -> TelegramClient.sendChatMessage(chatId, TgTextOutput("Argument expected"), message.id)
             else -> {
                 val markdownText = if (value.toIntOrNull() != null) {

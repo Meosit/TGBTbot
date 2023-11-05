@@ -8,10 +8,10 @@ import com.tgbt.telegram.output.TgTextOutput
 
 
 object FooterCommand : BotCommand {
-    override val command = "/footer "
+    override val command = "/footer"
 
     override suspend fun MessageContext.handle() {
-        val value = messageText.removePrefix(command)
+        val value = messageText.removePrefix(command).trim()
         Setting.FOOTER_MD.save(value)
         val md = "Footer '$value' would be added at the end of each message with one empty line delimiter"
         TelegramClient.sendChatMessage(chatId, TgTextOutput(md), message.id)

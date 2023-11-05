@@ -8,10 +8,10 @@ import com.tgbt.telegram.TelegramClient
 import com.tgbt.telegram.output.TgTextOutput
 
 object OwnerAsUserCommand : BotCommand {
-    override val command = "/owner_as_user "
+    override val command = "/owner_as_user"
 
     override suspend fun MessageContext.handle() {
-        when (val value = messageText.removePrefix(command)) {
+        when (val value = messageText.removePrefix(command).trim()) {
             "" -> TelegramClient.sendChatMessage(chatId, TgTextOutput("Argument expected"), message.id)
             "true", "false" -> {
                 if (chatId in BotOwnerIds) {

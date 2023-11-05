@@ -27,7 +27,7 @@ object VkScheduleCommand : BotCommand {
     private val timePattern = DateTimeFormatter.ofPattern("H:mm")
 
     override suspend fun MessageContext.handle() {
-        val value = messageText.removePrefix(command)
+        val value = messageText.removePrefix(command).trim()
         val md = try {
             val scheduleItems = parseSchedule(value)
             val sortedValue = scheduleItems

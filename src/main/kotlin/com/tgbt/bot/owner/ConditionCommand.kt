@@ -14,10 +14,10 @@ import com.tgbt.telegram.output.TgTextOutput
 
 
 object ConditionCommand : BotCommand {
-    override val command = "/condition "
+    override val command = "/condition"
 
     override suspend fun MessageContext.handle() {
-        when (val maybeExpr = ConditionGrammar.tryParseToEnd(messageText.removePrefix(command))) {
+        when (val maybeExpr = ConditionGrammar.tryParseToEnd(messageText.removePrefix(command).trim())) {
             is Parsed -> {
                 val exprJson = BotJson.encodeToString(Expr.serializer(), maybeExpr.value)
                 Setting.CONDITION_EXPR.save(exprJson)

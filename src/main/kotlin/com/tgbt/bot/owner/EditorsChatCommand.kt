@@ -8,10 +8,10 @@ import com.tgbt.telegram.output.TgTextOutput
 
 
 object EditorsChatCommand: BotCommand {
-    override val command = "/editors_chat "
+    override val command = "/editors_chat"
 
     override suspend fun MessageContext.handle() {
-        when (val value = messageText.removePrefix(command)) {
+        when (val value = messageText.removePrefix(command).trim()) {
             "" -> TelegramClient.sendChatMessage(chatId, TgTextOutput("Argument expected"), message.id)
             else -> {
                 val md = if (value.toLongOrNull() != null) {

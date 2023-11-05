@@ -7,10 +7,10 @@ import com.tgbt.telegram.TelegramClient
 import com.tgbt.telegram.output.TgTextOutput
 
 object NotifyFreezeTimeoutCommand : BotCommand {
-    override val command = "/notify_freeze_timeout "
+    override val command = "/notify_freeze_timeout"
 
     override suspend fun MessageContext.handle() {
-        when (val value = messageText.removePrefix(command)) {
+        when (val value = messageText.removePrefix(command).trim()) {
             "" -> TelegramClient.sendChatMessage(chatId, TgTextOutput("Argument expected"), message.id)
             "true", "false" -> {
                 Setting.NOTIFY_FREEZE_TIMEOUT.save(value)

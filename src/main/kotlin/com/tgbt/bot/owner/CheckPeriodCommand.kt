@@ -8,10 +8,10 @@ import com.tgbt.telegram.output.TgTextOutput
 
 
 object CheckPeriodCommand : BotCommand {
-    override val command = "/check "
+    override val command = "/check"
 
     override suspend fun MessageContext.handle() {
-        when (val value = messageText.removePrefix(command)) {
+        when (val value = messageText.removePrefix(command).trim()) {
             "" -> TelegramClient.sendChatMessage(chatId, TgTextOutput("Argument expected"), message.id)
             else -> {
                 val markdownText = if (value.toIntOrNull() != null) {
