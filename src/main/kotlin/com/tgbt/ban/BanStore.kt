@@ -3,6 +3,7 @@ package com.tgbt.ban
 import com.tgbt.store.PostgresConnection
 import com.vladsch.kotlin.jdbc.Row
 import com.vladsch.kotlin.jdbc.sqlQuery
+import java.sql.Timestamp
 
 object BanStore {
 
@@ -12,22 +13,27 @@ object BanStore {
         }
     }
 
-    fun insert(suggestion: UserBan): Boolean = PostgresConnection.inSession {
+    fun insert(ban: UserBan): Boolean = PostgresConnection.inSession {
         1 == update(
             sqlQuery(
                 INSERT_SQL,
-                suggestion.authorChatId,
-                suggestion.authorName,
-                suggestion.reason,
-                suggestion.postTeaser,
-                suggestion.bannedBy,
-                suggestion.insertedTime
+                ban.authorChatId,
+                ban.authorName,
+                ban.reason,
+                ban.postTeaser,
+                ban.bannedBy,
+                ban.insertedTime,
+                ban.lastUnbanRequestTime,
             )
         )
     }
 
     fun remove(chatId: Long): Boolean = PostgresConnection.inSession {
         1 == update(sqlQuery(DELETE_BY_CHAT_ID, chatId))
+    }
+
+    fun updateLastUnbanRequest(chatId: Long, lastUnbanRequest: Timestamp): Boolean = PostgresConnection.inSession {
+        1 == update(sqlQuery(UPDATE_UNBAN_REQUEST_BY_CHAT_ID, lastUnbanRequest, chatId))
     }
 
     fun findByChatId(chatId: Long): UserBan? = PostgresConnection.inSession {
@@ -45,6 +51,7 @@ object BanStore {
         postTeaser = string("post_teaser"),
         bannedBy = string("banned_by"),
         insertedTime = sqlTimestamp("inserted_time"),
+        lastUnbanRequestTime = sqlTimestamp("last_unban_request_time"),
     )
 
     private const val CREATE_TABLE_SQL = """
@@ -55,6 +62,7 @@ object BanStore {
       post_teaser TEXT NOT NULL,
       banned_by TEXT NOT NULL,
       inserted_time TIMESTAMP NOT NULL,
+      last_unban_request_time TIMESTAMP NOT NULL,
       PRIMARY KEY (author_chat_id)
     )"""
 
@@ -65,8 +73,9 @@ object BanStore {
         reason, 
         post_teaser, 
         banned_by, 
-        inserted_time
-    ) VALUES (?,?,?,?,?,?)"""
+        inserted_time,
+        last_unban_request_time
+    ) VALUES (?,?,?,?,?,?,?)"""
 
     private const val SELECT_BY_CHAT_ID =
         """SELECT * FROM ban_list WHERE author_chat_id = ?"""
@@ -76,5 +85,8 @@ object BanStore {
 
     private const val DELETE_BY_CHAT_ID =
         """DELETE FROM ban_list WHERE author_chat_id = ?"""
+
+    private const val UPDATE_UNBAN_REQUEST_BY_CHAT_ID =
+        """UPDATE ban_list SET last_unban_request_time = ? WHERE author_chat_id = ?"""
 
 }

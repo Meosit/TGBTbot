@@ -7,7 +7,8 @@ object UserMessages {
     val helpMessage = loadResourceAsString("user/help.md")
     val helpBugurtMessage = loadResourceAsString("user/help.bugurt.md")
     val startMessage = loadResourceAsString("user/start.md")
+    val unbanRequestMessage = loadResourceAsString("user/pleaseunban.md")
 
-    val postPromotedMessage = "Твой пост '%s' пробился сквозь предложку! Беги проверять"
-    val bannedErrorMessage = "Ты заблокирован за пост '%s'. Причина: _%s_"
+    const val postPromotedMessage = "✅ Твой пост '%s' пробился сквозь предложку! Беги проверять"
+    const val bannedErrorMessage = "\uD83D\uDEAB Ты заблокирован за пост '_%s_'.\nПричина: _%s_\nРаз в %s дней можно отправить заявку на разбан через команду /pleaseunban"
 }

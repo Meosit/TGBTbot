@@ -12,6 +12,7 @@ import com.tgbt.misc.escapeMarkdown
 import com.tgbt.misc.simpleFormatTime
 import com.tgbt.misc.teaserString
 import com.tgbt.misc.trimToLength
+import com.tgbt.settings.Setting
 import com.tgbt.suggestion.SuggestionStore
 import com.tgbt.suggestion.postTextTeaser
 import com.tgbt.telegram.TelegramClient
@@ -61,18 +62,12 @@ object BanMenuHandler : CallbackButtonHandler("EDIT", "BAN"), BotCommand {
                     bannedBy = pressedBy
                 )
                 BanStore.insert(ban)
-                logger.info("User ${ban.authorName} was banned by ${ban.bannedBy}")
+                sendBanNotification(ban)
             }
             SuggestionStore.removeByChatAndMessageId(
                 suggestion.editorChatId,
                 suggestion.editorMessageId,
                 byAuthor = false
-            )
-            TelegramClient.sendChatMessage(
-                suggestion.authorChatId.toString(), TgTextOutput(
-                    UserMessages.bannedErrorMessage
-                        .format(suggestion.postTextTeaser().escapeMarkdown(), banComment.escapeMarkdown())
-                )
             )
             logger.info("Editor $pressedBy banned a user ${suggestion.authorName} because of post '${suggestion.postTextTeaser()}', comment '$banComment'")
             val editorlabel = "\uD83D\uDEAB Забанен $pressedBy в ${Instant.now().simpleFormatTime()} \uD83D\uDCAC $banComment \uD83D\uDEAB"
@@ -82,6 +77,14 @@ object BanMenuHandler : CallbackButtonHandler("EDIT", "BAN"), BotCommand {
         } else {
             EditorSuggestionMenuHandler.renderFinishKeyboard(message)
         }
+    }
+
+    suspend fun sendBanNotification(ban: UserBan) {
+        TelegramClient.sendChatMessage(ban.authorChatId.toString(), TgTextOutput(UserMessages.bannedErrorMessage.format(
+            ban.postTeaser.escapeMarkdown(),
+            ban.reason.escapeMarkdown(),
+            Setting.UNBAN_REQUEST_COOL_DOWN_DAYS.str()
+        )))
     }
 
     override suspend fun createHandlerKeyboard(message: Message, pressedBy: String) = sequence {
@@ -96,7 +99,7 @@ object BanMenuHandler : CallbackButtonHandler("EDIT", "BAN"), BotCommand {
     }.toList().let { InlineKeyboardMarkup(it) }
 
 
-    override val command: String = "/ban "
+    override val command: String = "/ban"
     override suspend fun MessageContext.handle() {
         if (replyMessage == null) return
         when (val comment = messageText.removePrefix(command).trim()) {

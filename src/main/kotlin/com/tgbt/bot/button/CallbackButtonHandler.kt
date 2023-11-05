@@ -2,6 +2,7 @@ package com.tgbt.bot.button
 
 import com.tgbt.BotOwnerIds
 import com.tgbt.bot.editor.button.EditorSuggestionMenuHandler
+import com.tgbt.bot.editor.button.UnbanMenuHandler
 import com.tgbt.bot.user.button.UserSuggestionMenuHandler
 import com.tgbt.misc.escapeMarkdown
 import com.tgbt.telegram.TelegramClient
@@ -46,7 +47,7 @@ abstract class CallbackButtonHandler(category: String, id: String) {
     }
     companion object {
         private val AVAILABLE_BUTTONS: List<CallbackButtonHandler> by lazy {
-            EditorSuggestionMenuHandler.allHandlers + UserSuggestionMenuHandler.allHandlers
+            EditorSuggestionMenuHandler.allHandlers + UserSuggestionMenuHandler.allHandlers + listOf(UnbanMenuHandler)
         }
 
         suspend fun handle(query: CallbackQuery): CallbackNotificationText {

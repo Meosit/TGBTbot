@@ -32,7 +32,9 @@ enum class Setting(private val default: String) {
     USER_SUGGESTION_DELAY_MINUTES("30"),
     SUGGESTION_POLLING_DELAY_MINUTES("10"),
     SEND_SUGGESTION_STATUS("true"),
-    GATEKEEPER("anon");
+    GATEKEEPER("anon"),
+    UNBAN_REQUEST_COOL_DOWN_DAYS("7"),
+    ;
 
     fun save(value: String) = set(this, value)
 

@@ -18,7 +18,7 @@ object UnbanCommand : BotCommand {
                 if (ban != null) {
                     val actuallyUnbanned = BanStore.remove(ban.authorChatId)
                     if (actuallyUnbanned) {
-                        TelegramClient.sendChatMessage(chatId, TgTextOutput("Пользователь ${ban.authorName.escapeMarkdown()} разблокирован"))
+                        TelegramClient.sendChatMessage(chatId, TgTextOutput("Пользователь ${ban.authorName} разблокирован"))
                         TelegramClient.sendChatMessage(ban.authorChatId.toString(), TgTextOutput("Возможность предлагать посты была возвращена редакторами"))
                     }
                 } else {

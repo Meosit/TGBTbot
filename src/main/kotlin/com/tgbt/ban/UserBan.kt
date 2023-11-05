@@ -9,5 +9,6 @@ data class UserBan(
     val reason: String,
     val postTeaser: String,
     val bannedBy: String,
-    val insertedTime: Timestamp = Timestamp.from(Instant.now())
+    val insertedTime: Timestamp = Timestamp.from(Instant.now()),
+    val lastUnbanRequestTime: Timestamp = Timestamp.from(Instant.now())
 )

@@ -53,7 +53,7 @@ object RejectMenuHandler: CallbackButtonHandler("EDIT", "REJECT"), BotCommand {
         return if (suggestion?.editorChatId != null && suggestion.editorMessageId != null) {
             val actuallyDeleted = SuggestionStore.removeByChatAndMessageId(suggestion.editorChatId, suggestion.editorMessageId, byAuthor = false)
             if (actuallyDeleted) {
-                val outputMessage = "Пост '${suggestion.postTextTeaser().escapeMarkdown()}' был отклонен редакторами${rejectComment?.let { " с комментарием _${it.escapeMarkdown()}_" } ?: ""}"
+                val outputMessage = "❌ Пост '${suggestion.postTextTeaser().escapeMarkdown()}' был отклонен редакторами${rejectComment?.let { "\nКомментарий: _${it.escapeMarkdown()}_" } ?: ""}"
                 TelegramClient.sendChatMessage(suggestion.authorChatId.toString(), TgTextOutput(outputMessage))
                 val commentPreview = if (rejectComment != null) " \uD83D\uDCAC $rejectComment" else ""
                 logger.info("Editor $pressedBy rejected post '${suggestion.postTextTeaser()}' from ${suggestion.authorName} with comment '$rejectComment'")

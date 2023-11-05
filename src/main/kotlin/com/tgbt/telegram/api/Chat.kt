@@ -1,5 +1,6 @@
 package com.tgbt.telegram.api
 
+import com.tgbt.misc.escapeMarkdown
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -15,7 +16,7 @@ data class Chat(
 )
 
 val Chat.verboseUserName: String get() =
-    username?.let { "@$it" } ?: firstName?.let { "[$firstName${lastName?.let { " $it" } ?: ""}](tg://user?id=$id)" } ?: "$title (Group)"
+    username?.let { "@$it" } ?: firstName?.let { "[${firstName.escapeMarkdown()}${lastName?.let { " ${it.escapeMarkdown()}" } ?: ""}](tg://user?id=$id)" } ?: "$title (Group)"
 
 val Chat.isPrivate: Boolean get() = type == "private"
 val Chat.isGroup: Boolean get() = type == "group" || type == "supergroup"

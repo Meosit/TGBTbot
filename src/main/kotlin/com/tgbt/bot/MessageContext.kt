@@ -11,8 +11,8 @@ import com.tgbt.bot.editor.button.PostMenuHandler
 import com.tgbt.bot.editor.button.RejectMenuHandler
 import com.tgbt.bot.owner.*
 import com.tgbt.bot.user.AddPostCommand
+import com.tgbt.bot.user.PleaseUnbanCommand
 import com.tgbt.bot.user.UserHelpCommand
-import com.tgbt.bot.user.UserMessages
 import com.tgbt.bot.user.UserStartCommand
 import com.tgbt.bot.user.button.UserModifyImageMenuHandler
 import com.tgbt.bot.user.button.UserModifyTextMenuHandler
@@ -78,13 +78,11 @@ data class MessageContext(
         message.chat.isPrivate -> {
             val command = USER_COMMANDS.find { it.canHandle(this) }
             val ban = BanStore.findByChatId(message.chat.id)
-            if (ban == null) {
+            if (ban == null || command in USER_BANNED_COMMANDS) {
                 command?.handleCommand(this) ?: TelegramClient.sendChatMessage(chatId,
                     TgTextOutput("Для добавления нового поста нужно подождать, пока можешь отредактировать старый (если еще не вышло время), либо почитать /help"))
             } else {
-                TelegramClient.sendChatMessage(
-                    chatId, TgTextOutput(UserMessages.bannedErrorMessage
-                    .format(ban.postTeaser.escapeMarkdown(), ban.reason.escapeMarkdown())))
+                BanMenuHandler.sendBanNotification(ban)
             }
         }
         EDITOR_CHAT_ID.str() == chatId -> {
@@ -132,16 +130,25 @@ data class MessageContext(
             LastDayScheduleCommand,
             LastDayMissedCommand,
             GatekeeperCommand,
+            UnbanRequestCoolDownCommand,
             OwnerAsUserCommand,
         )
 
         private val USER_COMMANDS: List<BotCommand> = listOf(
             UserHelpCommand,
+            PleaseUnbanCommand,
             UserStartCommand,
             OwnerAsUserCommand,
             UserModifyImageMenuHandler,
             UserModifyTextMenuHandler,
             AddPostCommand,
+        )
+
+        private val USER_BANNED_COMMANDS: List<BotCommand> = listOf(
+            UserHelpCommand,
+            UserStartCommand,
+            OwnerAsUserCommand,
+            PleaseUnbanCommand,
         )
 
         private val EDITOR_COMMANDS: List<BotCommand> = listOf(

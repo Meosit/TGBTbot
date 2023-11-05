@@ -24,6 +24,7 @@ For user suggestions:
 /suggestion\_delay `<minutes>` - cool down between user suggestions
 /suggestion\_edit `<minutes>` - time for user to edit his/her suggestion
 /clean\_old\_suggestions `<days>` - delete suggestion from DB which older than provided amount of days
+/unban\_cooldown `<days>` - cooldown amount of days when banned users can request to unban them   
 
 For VK freeze timeout notifications (when no new posts appear):
 /notify\_freeze\_timeout `<true|false>` - switch for sending freeze notifications by timeout
