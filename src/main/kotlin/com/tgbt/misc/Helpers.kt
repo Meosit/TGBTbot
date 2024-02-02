@@ -43,7 +43,7 @@ suspend inline fun <T> doNotThrow(message: String, block: () -> T?): T? = try {
         val label = editorsVkNotificationLabel.find { it in clientError }
         if (label != null) {
             TelegramClient.sendChatMessage(Setting.EDITOR_CHAT_ID.str(),
-                TgTextOutput("⚠\uFE0F VK Forwarding has failed ⚠\uFE0F\nReason: '$label'")
+                TgTextOutput("⚠\uFE0F VK API is not working ⚠\uFE0F\n\nTHIS IS AN EXTERNAL FAILURE, BOT IS WORKING AND NO ACTION NEEDED, JUST FOR YOUR INFORMATION")
             )
         }
     }

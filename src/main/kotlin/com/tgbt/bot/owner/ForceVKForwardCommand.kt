@@ -29,7 +29,6 @@ object ForceVKForwardCommand : BotCommand {
         "*На мясных никакой надежды, {user} не поставил пост на {slotTime}. С последнего поста ({lastPostTime}) прошло {freeze} минут*",
         "*{user}, ну сколько можно тебе напоминать? Пост на {slotTime}. С последнего поста ({lastPostTime}) прошло {freeze} минут*",
         "*{user}, мне самому что-ли предложку разгребать? {slotTime} пропустил. С последнего поста ({lastPostTime}) прошло {freeze} минут*",
-        "*Коллектив KFC 'У Бугурт-Палыча' осуждает {user} за пропуск поста на {slotTime}. С последнего поста ({lastPostTime}) прошло {freeze} минут*",
         "*Никогда такого не было и вот опять... {user} пропустил пост на {slotTime}. С последнего поста ({lastPostTime}) прошло {freeze} минут*",
         "*{user} проебался. Надо было пост поставить на {slotTime}. С последнего поста ({lastPostTime}) прошло {freeze} минут*",
         "*Чел ты {user}... Нет поста на {slotTime}. С последнего поста ({lastPostTime}) прошло {freeze} минут*",
@@ -40,16 +39,16 @@ object ForceVKForwardCommand : BotCommand {
         "*Я официально осуждаю {user} за проёб слота {slotTime}. С последнего поста ({lastPostTime}) прошло {freeze} минут*",
         "*Если бы не проёб {user} в {slotTime}, сидел бы себе молча посты из ВК перекидывал. С последнего поста ({lastPostTime}) прошло {freeze} минут*",
         "*Последнее китайское предупреждение {user}: не пропускай слоты на {slotTime}. С последнего поста ({lastPostTime}) прошло {freeze} минут*",
-        "*Минут 10-15 минут 5-10 пятого 4-5 10 пятого, или как {user} пост на {slotTime} ставил. С последнего поста ({lastPostTime}) прошло {freeze} минут*",
         "*Очередной кожаный мешок {user} меня разочаровал пропустив слот в {slotTime}. С последнего поста ({lastPostTime}) прошло {freeze} минут*",
         "*Ну и мразь же ты, {user}, отвратительно. Нет поста в {slotTime}. С последнего поста ({lastPostTime}) прошло {freeze} минут*",
         "*{user}, поздравляю, ты только что пост. Что пост? Только что, в {slotTime}. С последнего поста ({lastPostTime}) прошло {freeze} минут*",
-        "*Можно бесконечно смотреть на 3 вещи. Как горит огонь, как течёт вода и как {user} не ставит пост на {slotTime}. С последнего поста ({lastPostTime}) прошло {freeze} минут*"
+        "*Можно бесконечно смотреть на 3 вещи. Как горит огонь, как течёт вода и как {user} не ставит пост на {slotTime}. С последнего поста ({lastPostTime}) прошло {freeze} минут*",
+        "*{user}, ну и? Долго пост на {slotTime} ждать? С последнего поста ({lastPostTime}) прошло {freeze} минут*",
+        "*{user}, оправдания будут? С последнего поста ({lastPostTime}) прошло {freeze} минут*",
     )
 
     override suspend fun MessageContext.handle() {
         forwardVkPosts(forcedByOwner = true)
-        TelegramClient.sendChatMessage(chatId, TgTextOutput("Forward check finished"))
     }
 
     suspend fun forwardVkPosts(forcedByOwner: Boolean = false) {
@@ -114,14 +113,16 @@ object ForceVKForwardCommand : BotCommand {
             }
             if (forcedByOwner || (sendStatus && forwarded.size > 0)) {
                 doNotThrow("Failed to send stats to TG") {
-                    val message = "*FORWARDING*\n" +
-                            "\nRight now forwarded ${forwarded.size} posts from VK to Telegram:\n" +
+                    val message = "*VK Forward check finished*\n\n" +
+                            "Right now forwarded ${forwarded.size} posts from VK to Telegram:\n" +
                             "${stats["freeze"]} minutes since last VK post\n" +
                             "${stats["total"]} loaded in total\n" +
-                            "${stats["condition"]} after filtering by condition\n" +
-                            "Posts:\n> " + forwarded.joinToString("\n> ")
+                            "${stats["condition"]} remained after condition applied\n" +
+                            "${stats["already"]} remained after duplicates removed\n" +
+                            (if (forwarded.isNotEmpty()) "Posts:\n> " + forwarded.joinToString("\n> ")
+                             else "NO posts forwarded this time")
                     logger.info(message)
-                    BotOwnerIds.forEach {
+                    (BotOwnerIds + editorsChatId).forEach {
                         TelegramClient.sendChatMessage(
                             it,
                             TgTextOutput(message),
